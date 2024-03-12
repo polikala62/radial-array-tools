@@ -5,6 +5,9 @@ Created on Dec 13, 2023
 '''
 
 import arcpy, math
+
+from functions.clip import clip_raster
+from functions.intersect import check_disjoint
 '''
 def curvature_drop(z_surface, dist): # Assumes a spherical earth.
     
@@ -134,17 +137,12 @@ def interpolate3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_cr
     
     # Get observation point coordinates.
     obs_x, obs_y, obs_z = [float(i) for i in obs_pt] #@UnusedVariable
-    '''
-    # Calculate new observer point based on distance to shore.
-    if coast_polylines != None and coast_polylines != "": #@TODO: sort out which one is being passed.
-        obs_xy_pt = arcpy.PointGeometry(arcpy.Point(obs_x, obs_y))
-        min_dist = int(min([obs_xy_pt.distanceTo(i) for i in coast_polylines]))
-        
-    else:
-        min_dist = 0
-    '''
+    
     # Create list for output.
     out_list = []
+    
+    # Create list for raster clipping.
+    raster_clip_list = []
     
     # Create list for insert cursor.
     insert_cursor_list = []
@@ -163,6 +161,10 @@ def interpolate3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_cr
         pt_x = (math.sin(heading)*max_dist) + obs_x
         pt_y = (math.cos(heading)*max_dist) + obs_y
         
+        # Add start and end coordinates to raster clipping list.
+        raster_clip_list.append([start_x, start_y])
+        raster_clip_list.append([pt_x, pt_y])
+        
         # Create a polyline geometry
         heading_array = arcpy.Array([arcpy.Point(start_x, start_y),arcpy.Point(pt_x, pt_y)])
         heading_polyline = arcpy.Polyline(heading_array)
@@ -173,9 +175,148 @@ def interpolate3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_cr
             
         else:
             
-            if True in [heading_polyline.crosses(i) for i in coast_polylines]:
+            if check_disjoint(heading_polyline, coast_polylines) == False:
+            #if True in [heading_polyline.crosses(i) for i in coast_polylines]:
                 
                 insert_cursor_list.append([deg_heading, heading_polyline])
+    
+    # Clip raster to fit polyline features.
+    clip_ras = clip_raster(raster_clip_list, (raster_res*2), in_ras)
+    
+    if len(insert_cursor_list) > 0:
+    
+        # Save polyline features to memory.
+        arcpy.management.CreateFeatureclass(r"memory", "array_2d", geometry_type="POLYLINE", has_m="DISABLED", has_z="ENABLED", spatial_reference=pr_crs)
+        
+        with arcpy.da.InsertCursor(r"memory\array_2d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+            
+            for row in insert_cursor_list:
+                
+                # Insert row.
+                cursor.insertRow(row)
+        
+        del cursor
+        
+        # Interpolate polyline features.
+        arcpy.ddd.InterpolateShape(clip_ras, r"memory\array_2d", r"memory\array_3d")
+        
+        # Delete raster.
+        arcpy.Delete_management(clip_ras)
+        
+        # Read feature vertices to dictionary, with values [X, Y, Z, HEADING].
+        with arcpy.da.SearchCursor(r"memory\array_3d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+            
+            for row in cursor:
+                
+                heading_dict = {}
+                
+                pr_list = []
+                
+                for part in row[1]:
+                    
+                    for pnt in part:
+                        
+                        # Find the drop in distance due to curvature.
+                        pt_obs_dist = math.dist([obs_x, obs_y], [pnt.X, pnt.Y])
+                        rad_earth = 6370000 # Earth's radius, cribbed from: https://pro.arcgis.com/en/pro-app/latest/tool-reference/3d-analyst/using-viewshed-and-observer-points-for-visibility.htm
+                        curv_offset = (math.sqrt((rad_earth**2)+(pt_obs_dist**2)) - rad_earth)
+                        
+                        # TODO: Try to factor in refraction? But that's also contingent on temperature.
+                        
+                        # Modify point z to take curvature into account.
+                        mod_pnt_z = pnt.Z - curv_offset
+                        
+                        # Discard z point if point + offset is less than observer z.
+                        if mod_pnt_z >= obs_z:
+                            
+                            # Add point to output.
+                            pr_list.append([pnt.X, pnt.Y, mod_pnt_z])
+                
+                # Sort list by distance.
+                for idx, pt in enumerate(sort_pts_by_dist_2d([obs_x, obs_y], pr_list)):
+                    
+                    # Create point key and add to dictionary.
+                    pt_key = "{}-{}".format(row[0], idx)
+                    heading_dict[pt_key] = pt
+                
+                # Add dictionary to output.
+                out_list.append(heading_dict)
+        
+        # Delete cursor.
+        del cursor
+        
+        # Delete processing datasets.
+        arcpy.Delete_management(r"memory\array_2d")
+        arcpy.Delete_management(r"memory\array_3d")
+        
+    # Return list of all coordinates for all headings.
+    return out_list
+
+#------------------------------------------------------------------------------ 
+def generate_2d_radial_array(obs_pt, min_dist, max_dist, pr_gdb, coast_polylines=None, degree_interval=1):
+    
+    # Set the geoprocessing workspace
+    arcpy.env.workspace = pr_gdb
+    
+    # Loop through degrees, create polyline objects if polylines intersect coast.
+    
+    # Get observation point coordinates.
+    obs_x, obs_y, obs_z = [float(i) for i in obs_pt] #@UnusedVariable
+    
+    # Create list for raster clipping.
+    raster_clip_list = []
+    
+    # Create list for insert cursor.
+    insert_cursor_list = []
+    
+    # Loop through degree intervals.
+    for deg_heading in range(0,360,degree_interval):
+        
+        # Convert heading to radians.
+        heading = math.radians(deg_heading)
+        
+        # Calculate start point for polyline.
+        start_x = (math.sin(heading)*min_dist) + obs_x
+        start_y = (math.cos(heading)*min_dist) + obs_y
+        
+        # Calculate endpoint for polyline.
+        pt_x = (math.sin(heading)*max_dist) + obs_x
+        pt_y = (math.cos(heading)*max_dist) + obs_y
+        
+        # Add start and end coordinates to raster clipping list.
+        raster_clip_list.append([start_x, start_y])
+        raster_clip_list.append([pt_x, pt_y])
+        
+        # Create a polyline geometry
+        heading_array = arcpy.Array([arcpy.Point(start_x, start_y),arcpy.Point(pt_x, pt_y)])
+        heading_polyline = arcpy.Polyline(heading_array)
+        
+        # If there are no land mask features, add polyline to list.
+        if coast_polylines == None:
+            
+            insert_cursor_list.append([deg_heading, heading_polyline])
+        
+        # If there are land mask features, only add polyline to list if it is not disjoint (i.e. intersects).
+        else:
+            
+            if check_disjoint(heading_polyline, coast_polylines) == False:
+                
+                insert_cursor_list.append([deg_heading, heading_polyline])
+    
+    # Return list for export cursor.
+    return raster_clip_list, insert_cursor_list
+
+#------------------------------------------------------------------------------ 
+def interpolate_2d_radial_array(obs_pt, insert_cursor_list, in_ras, pr_gdb, pr_crs):
+    
+    # Set the geoprocessing workspace
+    arcpy.env.workspace = pr_gdb
+    
+    # Get observation point coordinates.
+    obs_x, obs_y, obs_z = [float(i) for i in obs_pt] #@UnusedVariable
+    
+    # Create list for output.
+    out_list = []
     
     if len(insert_cursor_list) > 0:
     
@@ -233,9 +374,14 @@ def interpolate3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_cr
                 # Add dictionary to output.
                 out_list.append(heading_dict)
         
+        # Delete cursor.
+        del cursor
+        
         # Delete processing datasets.
         arcpy.Delete_management(r"memory\array_2d")
         arcpy.Delete_management(r"memory\array_3d")
         
     # Return list of all coordinates for all headings.
     return out_list
+
+#------------------------------------------------------------------------------ 
