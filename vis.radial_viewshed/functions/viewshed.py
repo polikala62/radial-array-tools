@@ -141,16 +141,21 @@ def radial_viewshed(obs_pt, in_dem_ras, in_dem_res, pr_gdb, min_dist, max_dist, 
             
             # Create multipoint geometry consisting of visible points within the radial array.
             vis_pts_list = [out_pt_dict[i] for i in out_pt_dict.keys()]
-            vis_pts_multipoint = arcpy.Multipoint(arcpy.Array([arcpy.Point(*coords) for coords in vis_pts_list]))
             
-            # Iterate through landmarks features.
-            for lmark_geom in lmark_mod_geom_list:
+            # Check that visible points exist.
+            if len(vis_pts_list) > 0:
                 
-                #@TODO: CODE SPATIAL INTERESECT (IN SEPARATE FUNCTION?)
-                if lmark_geom.disjoint(vis_pts_multipoint) == False:
+                # Create multipoint from visible points.
+                vis_pts_multipoint = arcpy.Multipoint(arcpy.Array([arcpy.Point(*coords) for coords in vis_pts_list]))
+                
+                # Iterate through landmarks features.
+                for lmark_geom in lmark_mod_geom_list:
                     
-                    # Increment visible landmarks count if landmark and visible point geometries intersect.
-                    array_lmark_int += 1
+                    # Increment visible landmarks count if landmark and visible point geometries are not disjoint (i.e. intersect).
+                    if lmark_geom.disjoint(vis_pts_multipoint) == False:
+                        
+                        # Add to landmark count.
+                        array_lmark_int += 1
             
             benchmark_dict = benchmark(function_start_time, benchmark_dict, "check_landmark_disjoint")
             

@@ -96,8 +96,8 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, lmark_fc, land_fc, max_dist, x_range, y_r
     z_range = np.arange(z_min, (z_max + z_step), z_step)
     
     # Create 2D arrays for x, and y.
-    x_array = np.array([x_range for i in y_range])
-    y_array = np.rot90(np.array([y_range for i in x_range]))
+    x_array = np.array([x_range for i in y_range]) #@UnusedVariable
+    y_array = np.rot90(np.array([y_range for i in x_range])) #@UnusedVariable
     
     # Use ranges to create a shape for data outputs.
     out_array_shape = (len(z_range), len(y_range), len(x_range))
@@ -107,11 +107,6 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, lmark_fc, land_fc, max_dist, x_range, y_r
     sub_sum_x_array = np.zeros(out_array_shape, dtype=float, order='C')
     sub_max_y_array = np.zeros(out_array_shape, dtype=float, order='C')
     landmark_count_array = np.zeros(out_array_shape, dtype=float, order='C')
-    
-    #===========================================================================
-    # CALCULATE VISIBILITY VALUES.
-    #===========================================================================
-    console.console("Calculating visibility values...")
     
     # Read landmark polygons to list of geometry objects.
     #@TODO: Scan for duplicate IDs and print warning?
@@ -132,7 +127,15 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, lmark_fc, land_fc, max_dist, x_range, y_r
     pr_count = 0
     pr_total = int(len(x_range) * len(y_range) * len(z_range))
     
-    console.console("{} points found in array.".format(str(pr_total)),2)
+    console.console("X dimension has {} entries.".format(str(len(x_range))),2)
+    console.console("Y dimension has {} entries.".format(str(len(y_range))),2)
+    console.console("Z dimension has {} entries.".format(str(len(z_range))),2)
+    console.console("Output array has {} data points.".format(str(pr_total)),2)
+    
+    #===========================================================================
+    # CALCULATE VISIBILITY VALUES.
+    #===========================================================================
+    console.console("Calculating visibility values...")
     
     # Iterate through indices.
     for index, x in np.ndenumerate(sub_area_array): #@UnusedVariable
@@ -155,8 +158,6 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, lmark_fc, land_fc, max_dist, x_range, y_r
         
         # Check the distance from the point to polygons in the input mask (returns empty list if point intersects mask).
         pr_pt_dist_list = intersect.check_distance_to(pr_pt, land_poly)
-        
-        
         
         # Add to benchmark dictionary.
         benchmark_dict = benchmark(function_start_time, benchmark_dict, "point_land_mask_distanceTo")
