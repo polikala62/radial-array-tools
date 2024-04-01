@@ -128,7 +128,7 @@ def extractmultivalue_radial_array(obs_pt, in_ras, max_dist, pr_gdb, coast_polyg
 
 #------------------------------------------------------------------------------ 
 
-def interpolate3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_crs, coast_polylines=None, raster_res=5, degree_interval=1):
+def interpolate_3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_crs, coast_polylines=None, raster_res=5, degree_interval=1):
     
     # Set the geoprocessing workspace
     arcpy.env.workspace = pr_gdb
@@ -260,10 +260,7 @@ def generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_in
     
     # Create list for raster clipping.
     raster_clip_list = []
-    '''
-    # Create list for insert cursor.
-    insert_cursor_list = []
-    '''
+    
     out_dict = {}
     
     # Loop through degree intervals.
@@ -289,19 +286,7 @@ def generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_in
         heading_polyline = arcpy.Polyline(heading_array)
         
         out_dict[deg_heading] = heading_polyline
-        '''
-        # If there are no land mask features, add polyline to list.
-        if coast_polylines == None:
-            
-            insert_cursor_list.append([deg_heading, heading_polyline])
         
-        # If there are land mask features, only add polyline to list if it is not disjoint (i.e. intersects).
-        else:
-            
-            if check_disjoint(heading_polyline, coast_polylines) == False:
-                
-                insert_cursor_list.append([deg_heading, heading_polyline])
-        '''
     # Return list for export cursor.
     return raster_clip_list, out_dict
 

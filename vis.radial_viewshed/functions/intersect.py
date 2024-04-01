@@ -4,9 +4,6 @@ Created on Dec 13, 2023
 @author: Karl
 '''
 
-def vis_pts_int(pt_list, check_geom):
-    pass
-
 # Check for disjoint slightly more efficiently by escaping the function as soon as an intersection is detected.
 def check_disjoint(in_pt, in_poly_list):
     
