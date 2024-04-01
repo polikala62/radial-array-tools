@@ -253,21 +253,18 @@ def interpolate3d_radial_array(obs_pt, in_ras, min_dist, max_dist, pr_gdb, pr_cr
     return out_list
 
 #------------------------------------------------------------------------------ 
-def generate_2d_radial_array(obs_pt, min_dist, max_dist, pr_gdb, coast_polylines=None, degree_interval=1):
+def generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_interval=1):
     
     # Set the geoprocessing workspace
     arcpy.env.workspace = pr_gdb
     
-    # Loop through degrees, create polyline objects if polylines intersect coast.
-    
-    # Get observation point coordinates.
-    obs_x, obs_y, obs_z = [float(i) for i in obs_pt] #@UnusedVariable
-    
     # Create list for raster clipping.
     raster_clip_list = []
-    
+    '''
     # Create list for insert cursor.
     insert_cursor_list = []
+    '''
+    out_dict = {}
     
     # Loop through degree intervals.
     for deg_heading in range(0,360,degree_interval):
@@ -291,6 +288,8 @@ def generate_2d_radial_array(obs_pt, min_dist, max_dist, pr_gdb, coast_polylines
         heading_array = arcpy.Array([arcpy.Point(start_x, start_y),arcpy.Point(pt_x, pt_y)])
         heading_polyline = arcpy.Polyline(heading_array)
         
+        out_dict[deg_heading] = heading_polyline
+        '''
         # If there are no land mask features, add polyline to list.
         if coast_polylines == None:
             
@@ -302,26 +301,46 @@ def generate_2d_radial_array(obs_pt, min_dist, max_dist, pr_gdb, coast_polylines
             if check_disjoint(heading_polyline, coast_polylines) == False:
                 
                 insert_cursor_list.append([deg_heading, heading_polyline])
-    
+        '''
     # Return list for export cursor.
-    return raster_clip_list, insert_cursor_list
+    return raster_clip_list, out_dict
+
+def filter_2d_radial_array(heading_polylines_dict, coast_poly_list):
+    
+    insert_cursor_list = []
+    
+    for deg_heading in heading_polylines_dict.keys():
+    
+        heading_polyline = heading_polylines_dict[deg_heading]
+        
+        # If there are no land mask features, add polyline to list.
+        if coast_poly_list == None:
+            
+            insert_cursor_list.append([deg_heading, heading_polyline])
+        
+        # If there are land mask features, only add polyline to list if it is not disjoint (i.e. intersects).
+        else:
+            
+            if check_disjoint(heading_polyline, coast_poly_list) == False:
+                
+                insert_cursor_list.append([deg_heading, heading_polyline])
+                
+    return insert_cursor_list
 
 #------------------------------------------------------------------------------ 
-def interpolate_2d_radial_array(obs_pt, insert_cursor_list, in_ras, pr_gdb, pr_crs):
+
+def interpolate_2d_radial_array(obs_x, obs_y, obs_z_list, insert_cursor_list, in_ras, pr_gdb, pr_crs):
     
     # Set the geoprocessing workspace
     arcpy.env.workspace = pr_gdb
     
-    # Get observation point coordinates.
-    obs_x, obs_y, obs_z = [float(i) for i in obs_pt] #@UnusedVariable
-    
-    # Create list for output.
-    out_list = []
+    # Create dictionary for output.
+    out_dict = {}
     
     if len(insert_cursor_list) > 0:
     
         # Save polyline features to memory.
-        arcpy.management.CreateFeatureclass(r"memory", "array_2d", geometry_type="POLYLINE", has_m="DISABLED", has_z="ENABLED", spatial_reference=pr_crs)
+        arcpy.management.CreateFeatureclass(r"memory", "array_2d", geometry_type="POLYLINE", has_m="DISABLED", has_z="DISABLED", spatial_reference=pr_crs)
         
         with arcpy.da.InsertCursor(r"memory\array_2d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
             
@@ -335,53 +354,69 @@ def interpolate_2d_radial_array(obs_pt, insert_cursor_list, in_ras, pr_gdb, pr_c
         # Interpolate polyline features.
         arcpy.ddd.InterpolateShape(in_ras, r"memory\array_2d", r"memory\array_3d")
         
-        # Read feature vertices to dictionary, with values [X, Y, Z, HEADING].
-        with arcpy.da.SearchCursor(r"memory\array_3d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+        # Loop through z values.
+        for obs_z in obs_z_list:
             
-            for row in cursor:
+            # Create list to hold heading dictionaries.
+            iter_heading_dict_list = []
                 
-                heading_dict = {}
-                
-                pr_list = []
-                
-                for part in row[1]:
+            # Read feature vertices to dictionary, with values [X, Y, Z, HEADING].
+            with arcpy.da.SearchCursor(r"memory\array_3d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+            
+                # Loop through rows in cursor.
+                for row in cursor:
                     
-                    for pnt in part:
+                    # Create dictionary to hold visibility values per heading.
+                    heading_dict = {}
+                    
+                    # Create processing list to hold filtered values.
+                    pr_list = []
+                    
+                    # Check that row has a shape.
+                    if row[1] != None:
                         
-                        # Find the drop in distance due to curvature.
-                        pt_obs_dist = math.dist([obs_x, obs_y], [pnt.X, pnt.Y])
-                        rad_earth = 6370000 # Earth's radius, cribbed from: https://pro.arcgis.com/en/pro-app/latest/tool-reference/3d-analyst/using-viewshed-and-observer-points-for-visibility.htm
-                        curv_offset = (math.sqrt((rad_earth**2)+(pt_obs_dist**2)) - rad_earth)
-                        
-                        # TODO: Try to factor in refraction? But that's also contingent on temperature.
-                        
-                        # Modify point z to take curvature into account.
-                        mod_pnt_z = pnt.Z - curv_offset
-                        
-                        # Discard z point if point + offset is less than observer z.
-                        if mod_pnt_z >= obs_z:
+                        for part in row[1]:
                             
-                            # Add point to output.
-                            pr_list.append([pnt.X, pnt.Y, mod_pnt_z])
-                
-                # Sort list by distance.
-                for idx, pt in enumerate(sort_pts_by_dist_2d([obs_x, obs_y], pr_list)):
+                            for pnt in part:
+                                
+                                # Find the drop in distance due to curvature.
+                                pt_obs_dist = math.dist([obs_x, obs_y], [pnt.X, pnt.Y])
+                                rad_earth = 6370000 # Earth's radius, cribbed from: https://pro.arcgis.com/en/pro-app/latest/tool-reference/3d-analyst/using-viewshed-and-observer-points-for-visibility.htm
+                                curv_offset = (math.sqrt((rad_earth**2)+(pt_obs_dist**2)) - rad_earth)
+                                
+                                # TODO: Try to factor in refraction? But that's also contingent on temperature.
+                                
+                                # Modify point z to take curvature into account.
+                                mod_pnt_z = pnt.Z - curv_offset
+                                
+                                # Discard z point if point + offset is less than observer z.
+                                if mod_pnt_z >= obs_z:
+                                    
+                                    # Add point to output.
+                                    pr_list.append([pnt.X, pnt.Y, mod_pnt_z])
+                        
+                        # Sort list by distance.
+                        for idx, pt in enumerate(sort_pts_by_dist_2d([obs_x, obs_y], pr_list)):
+                            
+                            # Create point key and add to dictionary.
+                            pt_key = "{}-{}".format(row[0], idx)
+                            heading_dict[pt_key] = pt
                     
-                    # Create point key and add to dictionary.
-                    pt_key = "{}-{}".format(row[0], idx)
-                    heading_dict[pt_key] = pt
+                    # Add dictionary to output.
+                    if len(heading_dict.keys()) > 0:
+                        iter_heading_dict_list.append(heading_dict)
                 
-                # Add dictionary to output.
-                out_list.append(heading_dict)
-        
-        # Delete cursor.
-        del cursor
+                # Add list of heading dicts to output dictionary, with obs_z as key.
+                out_dict[obs_z] = iter_heading_dict_list
+                
+            # Delete cursor.
+            del cursor
         
         # Delete processing datasets.
         arcpy.Delete_management(r"memory\array_2d")
         arcpy.Delete_management(r"memory\array_3d")
         
-    # Return list of all coordinates for all headings.
-    return out_list
+    # Return output dictionary.
+    return out_dict
 
 #------------------------------------------------------------------------------ 
