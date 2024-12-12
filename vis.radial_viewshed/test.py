@@ -5,7 +5,7 @@ Created on Dec 13, 2023
 '''
 
 import arcpy
-import funcs_visibility
+#import funcs_visibility
 '''
 pr_gdb = r'C:\GIS\vis_radial_viewshed\Radial_Viewshed\Radial_Viewshed.gdb'
 obs_pt_fc = r'C:\GIS\vis_radial_viewshed\Radial_Viewshed\Radial_Viewshed.gdb\tmp_pts'

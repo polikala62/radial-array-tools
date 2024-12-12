@@ -313,6 +313,65 @@ def filter_2d_radial_array(heading_polylines_dict, coast_poly_list):
     return insert_cursor_list
 
 #------------------------------------------------------------------------------ 
+def interpolate_2d_radial_array_2(obs_x, obs_y, obs_z_list, insert_cursor_list, in_ras, pr_gdb, pr_crs):
+    
+    # Set the geoprocessing workspace
+    arcpy.env.workspace = pr_gdb
+    
+    # Create dict for output.
+    out_list = []
+    
+    if len(insert_cursor_list) > 0:
+    
+        # Save polyline features to memory.
+        arcpy.management.CreateFeatureclass(r"memory", "array_2d", geometry_type="POLYLINE", has_m="DISABLED", has_z="DISABLED", spatial_reference=pr_crs)
+        
+        with arcpy.da.InsertCursor(r"memory\array_2d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+            
+            for row in insert_cursor_list:
+                
+                # Insert row.
+                cursor.insertRow(row)
+        
+        del cursor
+        
+        # Interpolate polyline features.
+        arcpy.ddd.InterpolateShape(in_ras, r"memory\array_2d", r"memory\array_3d")
+        
+                
+        # Read feature vertices to dictionary, with values [X, Y, Z, HEADING].
+        with arcpy.da.SearchCursor(r"memory\array_3d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+        
+            # Loop through rows in cursor.
+            for row in cursor:
+                
+                # Create dictionary to hold vertices.
+                vertex_list = []
+                
+                # Check that row has a shape.
+                if row[1] != None:
+                    
+                    for part in row[1]:
+                        
+                        for pnt in part:
+                            
+                            # Add point to list.
+                            vertex_list.append([pnt.X, pnt.Y, pnt.Z])
+                
+                # Add list to dictionary.
+                out_list.append(vertex_list)
+                
+        # Delete cursor.
+        del cursor
+        
+        # Delete processing datasets.
+        arcpy.Delete_management(r"memory\array_2d")
+        arcpy.Delete_management(r"memory\array_3d")
+        
+    # Return output dictionary.
+    return out_list
+
+#------------------------------------------------------------------------------ 
 
 def interpolate_2d_radial_array(obs_x, obs_y, obs_z_list, insert_cursor_list, in_ras, pr_gdb, pr_crs):
     
@@ -403,5 +462,41 @@ def interpolate_2d_radial_array(obs_x, obs_y, obs_z_list, insert_cursor_list, in
         
     # Return output dictionary.
     return out_dict
+
+#------------------------------------------------------------------------------ 
+
+def array_stats(in_array, vis_list, stop_idx, array_method, ray_method):
+    
+    pr_list = []
+    
+    for ray_list in in_array:
+    
+        iter_list = []
+        
+        for idx, val in enumerate(ray_list):
+            
+            if idx <= stop_idx and vis_list[idx] == 1:
+                
+                iter_list.append(val)
+        
+        # Summarise ray according to method.
+        if ray_method == "MIN":
+            pr_list.append(min(iter_list))
+        elif ray_method == "MAX":
+            pr_list.append(max(iter_list))
+        elif ray_method == "SUM":
+            pr_list.append(sum(iter_list))
+        elif ray_method == "AVG":
+            pr_list.append(sum(iter_list)/len(iter_list))
+    
+    # Summarise array according to method.
+    if array_method == "MIN":
+        return min(pr_list)
+    elif ray_method == "MAX":
+        return max(pr_list)
+    elif ray_method == "SUM":
+        return sum(pr_list)
+    elif ray_method == "AVG":
+        return sum(pr_list)/len(pr_list)
 
 #------------------------------------------------------------------------------ 

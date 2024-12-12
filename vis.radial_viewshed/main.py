@@ -4,16 +4,17 @@ Created on Mar 7, 2024
 @author: Karl
 '''
 
-
+# Import libraries.
 import numpy as np
-import arcpy, os, random, datetime
+import arcpy, os, datetime
 
 # Import local functions.
-from functions import clip, console, intersect, list, netcdf, viewshed
+from functions import clip, console, intersect, list, netcdf, validate, viewshed
 from functions.benchmark import benchmark
 from functions.benchmark import print_benchmark_to_console
 
-def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing, z_range, lmark_fc=""):
+# Define function for main loop.
+def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, z_range, sample_raster="", lmark_fc=""):
     
     # Print starting message to console.
     console.console("Starting script...")
@@ -21,48 +22,29 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
     # Get start time.
     start_time = datetime.datetime.now()
     
+    # Create dictionary to hold benchmarking values.
     benchmark_dict = {}
     
     #===========================================================================
     # FIND COORDINATE SYSTEM.
     #===========================================================================
     
-    if lmark_fc != "":
+    # Get coordinate system by comparing input features (raises exception if CRSsses are different).
+    out_crs = validate.validate_crs([in_dem, pt_mask_fc, land_fc, lmark_fc])
     
-        dem_crs = arcpy.Describe(in_dem).spatialReference
-        lmark_crs = arcpy.Describe(lmark_fc).spatialReference
-        coast_crs = arcpy.Describe(land_fc).spatialReference
-        
-        if dem_crs.name == lmark_crs.name and dem_crs.name == coast_crs.name and lmark_crs.name == coast_crs.name: # Yes, it's clumsy.
-            
-            out_crs = dem_crs
-            out_crs_name = out_crs.name
-            out_crs_units = out_crs.linearUnitName
-        
-        else:
-            
-            raise Exception("Input DEM and feature classes have different coordinate systems.")
-        
-    else:
-        
-        dem_crs = arcpy.Describe(in_dem).spatialReference
-        coast_crs = arcpy.Describe(land_fc).spatialReference
-        
-        if dem_crs.name == coast_crs.name:
-            
-            out_crs = dem_crs
-            out_crs_name = out_crs.name
-            out_crs_units = out_crs.linearUnitName
-        
-        else:
-            
-            raise Exception("Input DEM and feature classes have different coordinate systems.")
+    # Get coordinate system name as variable.
+    out_crs_name = out_crs.name
+    
+    # Get coordinate system linear unit as variable.
+    out_crs_units = out_crs.linearUnitName
     
     #===========================================================================
     # GET X, Y RANGES FROM INPUT MASK SHAPE.
     #===========================================================================
     
+    # Create an extent object for the land mask.
     land_fc_extent = arcpy.Describe(pt_mask_fc).extent
+    
     # Round west and south up to the nearest spacing value.
     land_fc_west = land_fc_extent.XMin + (xy_spacing - (land_fc_extent.XMin % xy_spacing))
     land_fc_south = land_fc_extent.YMin + (xy_spacing - (land_fc_extent.YMin % xy_spacing))
@@ -75,6 +57,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
     x_range = [land_fc_west, land_fc_east, xy_spacing]
     y_range = [land_fc_south, land_fc_north, xy_spacing]
     
+    # Delete describe object.
     del land_fc_extent
     
     #===========================================================================
@@ -115,41 +98,54 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
     #===========================================================================
     # GENERATE ARRAYS.
     #===========================================================================
+    
     console.console("Creating arrays for analysis...")
     
     # Get range values from input (they should all be lists in format: [min, max, increment]).
-    if len(x_range) == 3 and len(y_range) == 3 and len(z_range) == 3: #@TODO: better validation.
+    if len(x_range) == 3 and len(y_range) == 3 and len(z_range) == 3 and len(dist_range) == 3: #@TODO: better validation.
         
         # Get range values as variables.
         x_min, x_max, x_step = x_range
         y_min, y_max, y_step = y_range
         z_min, z_max, z_step = z_range
+        d_min, d_max, d_step = dist_range
         
     else:
         
-        raise Exception("Could not read input ranges. Ranges for x, y, and z should be lists with format [minimum_value, maximum_value, increment].")
+        raise Exception("Could not read input ranges. Ranges for x, y, z, and distance should be lists with format [minimum_value, maximum_value, increment].")
     
-    # Create ranges for x, y, and z.
+    # Create ranges for x, y, z, and distance.
     x_range = np.arange(x_min, (x_max + x_step), x_step)
     y_range = np.arange(y_min, (y_max + y_step), y_step)
     z_range = np.arange(z_min, (z_max + z_step), z_step)
+    d_range = np.arange(d_min, (d_max + d_step), d_step)
     
-    # Create 2D arrays for x, and y.
+    # Create 2D arrays for x, y, z, and distance.
     x_array = np.array([x_range for i in y_range]) #@UnusedVariable
     y_array = np.rot90(np.array([y_range for i in x_range])) #@UnusedVariable
     
     # Use ranges to create a shape for data outputs.
-    out_array_shape = (len(z_range), len(y_range), len(x_range))
+    out_array_shape = (len(d_range), len(z_range), len(y_range), len(x_range))
     
-    # Create arrays for data outputs.
+    # Create default arrays for data outputs.
     sub_area_array = np.zeros(out_array_shape, dtype=float, order='C')
     sub_sum_x_array = np.zeros(out_array_shape, dtype=float, order='C')
     sub_max_y_array = np.zeros(out_array_shape, dtype=float, order='C')
-    landmark_count_array = np.zeros(out_array_shape, dtype=float, order='C')
+    
+    # Create arrays for sample values, if enabled.
+    if sample_raster != "":
+        sample_min_array = np.zeros(out_array_shape, dtype=float, order='C')
+        sample_max_array = np.zeros(out_array_shape, dtype=float, order='C')
+        sample_avg_array = np.zeros(out_array_shape, dtype=float, order='C')
+    
+    # Create arrays for landmark values, if enabled.   
+    if lmark_fc != "":
+        landmark_count_array = np.zeros(out_array_shape, dtype=float, order='C')
     
     # Create array for mask intersection.
     mask_int_array_shape = (len(y_range), len(x_range))
     mask_int_array = np.zeros(mask_int_array_shape, dtype=float, order='C')
+    
     
     # Read landmark polygons to list of geometry objects.
     #@TODO: Scan for duplicate IDs and print warning?
@@ -184,6 +180,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
     #===========================================================================
     # CHECK POINTS AGAINST POINT MASK.
     #===========================================================================
+    
     console.console("Checking points against point mask...")
     
     # Set time for benchmarking.
@@ -233,6 +230,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
     #===========================================================================
     # CALCULATE VISIBILITY VALUES.
     #===========================================================================
+    
     console.console("Calculating visibility values...")
     
     iter_vis_start_time = datetime.datetime.now()
@@ -259,44 +257,66 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
             # Check the distance from the point to polygons in the input mask (returns empty list if point intersects mask).
             pr_pt_dist_list = intersect.check_distance_to(pr_pt, land_poly)
             
+            pt_pt_min_land_dist = min(pr_pt_dist_list)
+            
             # Add to benchmark dictionary.
             benchmark_dict = benchmark(function_start_time, benchmark_dict, "point_land_mask_distanceTo")
             
             # Only collect values if point does not intersect the mask.
             if len(pr_pt_dist_list) > 0:
+                    
+                # Get visibility values.
+                obs_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, dist_range, in_dem, dem_resolution, pr_gdb, out_crs, lmark_geom_list, 
+                                                                      land_poly, out_pts="", out_skyline="", benchmark_dict=benchmark_dict, override_min_dist=pt_pt_min_land_dist)
                 
-                # Calculate the minimum distance from the observer point to land mask.
-                shore_dist = int(min(pr_pt_dist_list))
-                
-                # Check that the distance to shore is less than the maximum allowed distance.
-                if shore_dist <= max_dist:
+                # Obs_dict is dictionary where key is observer height and value is distance dictionary.
+                for obs_z in obs_dict.keys():
                     
-                    # Get visibility values.
-                    vis_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, in_dem, dem_resolution, pr_gdb, shore_dist, max_dist, out_crs, lmark_geom_list, 
-                                                                          land_poly, out_pts="", out_skyline="", benchmark_dict=benchmark_dict)
+                    # Find index for z value.
+                    z_idx = list.list_index_from_val(z_range, obs_z)
                     
-                    # TEST: ASSIGN RANDOM INTEGERS SO THAT I CAN FINISH THE NETCDF EXPORT PART.
-                    #ts_vis_val, ms_vis_val, lk_vis_val = [random.randint(0,101) for i in range(0,3,1)]
+                    # Dist_dict is dictionary where key is visible distance and value is tuple.
+                    vdist_dict = obs_dict[obs_z]
                     
-                    for z_val in vis_dict.keys():
+                    # Tuple is format [v_angle_sum, v_angle_range, h_angle_sum, *sample_max, *sample_min, *sample_avg, *landmark_sum]
+                    for dist_val in vdist_dict.keys():
                         
-                        sub_area, sub_max_y, sub_sum_x, lmark_int = vis_dict[z_val]
+                        # Find index for distances.
+                        d_idx = list.list_index_from_val(d_range, dist_val)
                         
-                        z_idx = list.list_index_from_val(z_range, z_val)
+                        v_angle_sum, v_angle_range, h_angle_sum = vdist_dict[dist_val][0:3]
                         
-                        # Update arrays.
-                        sub_area_array[z_idx, y_idx, x_idx] = sub_area
-                        sub_sum_x_array[z_idx, y_idx, x_idx] = sub_sum_x
-                        sub_max_y_array[z_idx, y_idx, x_idx] = sub_max_y
-                        landmark_count_array[z_idx, y_idx, x_idx] = lmark_int
-            
+                        # Update default arrays.
+                        sub_area_array[d_idx, z_idx, y_idx, x_idx] = v_angle_sum
+                        sub_sum_x_array[d_idx, z_idx, y_idx, x_idx] = h_angle_sum
+                        sub_max_y_array[d_idx, z_idx, y_idx, x_idx] = v_angle_range
+                        
+                        if sample_raster != "":
+                            
+                            # Retrieve values from viewshed output.
+                            sample_max, sample_min, sample_avg = vdist_dict[dist_val][3:6]
+                            
+                            # Update arrays.
+                            sample_min_array[d_idx, z_idx, y_idx, x_idx] = sample_min
+                            sample_max_array[d_idx, z_idx, y_idx, x_idx] = sample_max
+                            sample_avg_array[d_idx, z_idx, y_idx, x_idx] = sample_avg
+                            
+                        if lmark_fc != "":
+                            
+                            # Retrieve values from viewshed output.
+                            landmark_sum = vdist_dict[dist_val[-1]]
+                            
+                            # Update arrays.
+                            landmark_count_array[d_idx, z_idx, y_idx, x_idx] = landmark_sum            
             
             pr_count += 1
             
             console.prcnt_complete(pr_count, pr_total, 1, iter_vis_start_time, leading_spaces=2, leading_text="")
+    
     #===========================================================================
     # GENERATE NETCDF FILE.
     #===========================================================================
+    
     console.console("Writing NetCDF to file...")
     
     # Define dictionaries.
@@ -307,64 +327,80 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, max_dist, xy_spacing
     
     dim_dict = {"x":len(x_range),
                 "y":len(y_range),
-                "z":None} # Make z an unlimited dimension (so more data can be added later).
+                "z":len(z_range),
+                "d":len(d_range)}
     
-    var_dict = {"easting":{'datatype':np.float64,
-                           'dimensions':('y','x')},
-                "northing":{'datatype':np.float64,
-                            'dimensions':('y','x')},
-                "sub_area":{'datatype':np.float64,
-                            'dimensions':('z','y','x')},
-                "sub_sum_x":{'datatype':np.float64,
-                             'dimensions':('z','y','x')},
-                "sub_max_y":{'datatype':np.float64,
-                             'dimensions':('z','y','x')},
-                "lmrk_count":{'datatype':np.float64,
-                              'dimensions':('z','y','x')}}
+    #------------------------------------------------------------------------------ 
     
-    var_atts_dict = {"easting":{'long_name':'easting',
-                                'units':out_crs_units},
-                     "northing":{'long_name':'northing',
-                                 'units':out_crs_units},
-                     "sub_area":{'long_name':'total_subtended_area',
-                                 'units':'square_degrees_of_arc'},
-                     "sub_sum_x":{'long_name':'sum_of_horizontal_subtended_area',
-                                  'units':'degrees_of_arc'},
-                     "sub_max_y":{'long_name':'maximum_vertical_subtended_area',
-                                  'units':'degrees_of_arc'},
-                     "lmrk_count":{'long_name':'landmark_count',
-                                   'units':'number_of_landmarks'}}
+    # Create variable dictionary for default variables.
+    var_dict = {"easting":{'datatype':np.float64, 'dimensions':('y','x')},
+                "northing":{'datatype':np.float64, 'dimensions':('y','x')},
+                "obs_height":{'datatype':np.float64, 'dimensions':('z')},
+                "vis_dist":{'datatype':np.float64, 'dimensions':('d')},
+                "sub_area":{'datatype':np.float64, 'dimensions':('d','z','y','x')},
+                "sub_sum_x":{'datatype':np.float64, 'dimensions':('d','z','y','x')},
+                "sub_max_y":{'datatype':np.float64, 'dimensions':('d','z','y','x')}}
     
+    # Create variable dictionary for sample data, if enabled.
+    if sample_raster != "":
+        var_dict['sample_max'] = {'datatype':np.float64, 'dimensions':('d','z','y','x')}
+        var_dict['sample_min'] = {'datatype':np.float64, 'dimensions':('d','z','y','x')}
+        var_dict['sample_avg'] = {'datatype':np.float64, 'dimensions':('d','z','y','x')}
+    
+    # Create variable dictionary for landmark data, if enabled.  
+    if lmark_fc != "":
+        var_dict["lmrk_count"] = {'datatype':np.float64, 'dimensions':('d','z','y','x')}
+    
+    #------------------------------------------------------------------------------ 
+    
+    # Create attributes dictionary for default variables.
+    var_atts_dict = {"easting":{'long_name':'easting', 'units':out_crs_units},
+                     "northing":{'long_name':'northing', 'units':out_crs_units},
+                     "obs_height":{'long_name':'observer_height', 'units':'{}_relative_to_vertical_datum'.format(out_crs_units)},
+                     "vis_dist":{'long_name':'visible_distance_limit', 'units':out_crs_units},
+                     "sub_area":{'long_name':'total_subtended_area', 'units':'square_degrees_of_arc'},
+                     "sub_sum_x":{'long_name':'sum_of_horizontal_subtended_area', 'units':'degrees_of_arc'},
+                     "sub_max_y":{'long_name':'maximum_vertical_subtended_area', 'units':'degrees_of_arc'}}
+    
+    # Create variable dictionary for sample data, if enabled.
+    if sample_raster != "":
+        var_atts_dict['sample_max'] = {'long_name':'sample_raster_max_value', 'units':'cell_value'}
+        var_atts_dict['sample_min'] = {'long_name':'sample_raster_min_value', 'units':'cell_value'}
+        var_atts_dict['sample_avg'] = {'long_name':'sample_raster_avg_value', 'units':'cell_value'}
+    
+    # Create variable dictionary for landmark data, if enabled.
+    if lmark_fc != "":
+        var_atts_dict["lmrk_count"] = {'long_name':'landmark_count', 'units':'number_of_landmarks'}
+    
+    #------------------------------------------------------------------------------ 
+    
+    # Create array dictionary for default variables.
     var_arrays_dict = {"easting":x_array,
                        "northing":y_array,
+                       "obs_height":z_range,
+                       "vis_dist":d_range,
                        "sub_area":sub_area_array,
                        "sub_sum_x":sub_sum_x_array,
                        "sub_max_y":sub_max_y_array,
                        "lmrk_count":landmark_count_array}
+
+    # Create array dictionary for sample data, if enabled.
+    if sample_raster != "":
+        var_arrays_dict['sample_max'] = sample_max_array
+        var_arrays_dict['sample_min'] = sample_min_array
+        var_arrays_dict['sample_avg'] = sample_avg_array
+    
+    # Create array dictionary for landmark data, if enabled.
+    if lmark_fc != "":
+        var_arrays_dict["lmrk_count"] = landmark_count_array
+        
+    #------------------------------------------------------------------------------ 
     
     # Create NetCDF.
     netcdf.create_netcdf(out_ncdf, file_dict, dim_dict, var_dict, var_atts_dict, var_arrays_dict)
-    '''
-    #===========================================================================
-    # GENERATE RASTER.
-    #===========================================================================
-    console.console("Writing Raster(s) to file...")
     
-    # Set environment crs.
-    arcpy.env.outputCoordinateSystem = out_crs
-    arcpy.env.overwriteOutput = True
+    #------------------------------------------------------------------------------ 
     
-    raster_path = r"{}\subarea_{}".format(pr_gdb, os.path.basename(out_ncdf).split(".")[0])
-    mod_sub_array = np.flip(sub_area_array[0],0)
-    
-    out_ras = arcpy.NumPyArrayToRaster(mod_sub_array,
-                                 lower_left_corner=arcpy.Point((land_fc_west-(xy_spacing*0.5)), (land_fc_south-(xy_spacing*0.5))), 
-                                 x_cell_size=xy_spacing, 
-                                 y_cell_size=xy_spacing,
-                                 value_to_nodata=None)
-    
-    out_ras.save(raster_path)
-    '''
     # Print message to console.
     console.console("Script finished.")
     
