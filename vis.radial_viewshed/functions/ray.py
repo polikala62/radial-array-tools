@@ -211,7 +211,7 @@ def angle_list(obs_x, obs_y, obs_z, pt_list):
         pt_dist_3d = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2 + (pt_z-obs_z)**2)
         
         # Assume that the 2D and 3D distances are equivalent to adjacent side / hypotenuse of a right triangle in profile view.
-        pt_angle = math.degrees(math.atan(pt_dist_2d/pt_dist_3d))
+        pt_angle = math.degrees(math.acos(pt_dist_2d/pt_dist_3d))
         
         out_angle_list.append(pt_angle)
             
@@ -264,12 +264,14 @@ def sample_raster(in_ras, pt_list, coordinate_system):
     ExtractValuesToPoints(r"memory\sr1", in_ras, r"memory\sr2", "NONE", "VALUE_ONLY")
     
     # Read values from points.
-    with arcpy.da.ReadCursor(r"memory\sr2", ["RASTERVALU"]) as cursor: #@UndefinedVariableFromImport
+    with arcpy.da.SearchCursor(r"memory\sr2", ["RASTERVALU"]) as cursor: #@UndefinedVariableFromImport
         
         for row in cursor:
             
-            # Add row value to output list.
-            out_list.append(row[0])
+            if row[0] not in ["", None]:
+            
+                # Add row value to output list.
+                out_list.append(row[0])
     
     del cursor
     

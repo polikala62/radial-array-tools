@@ -257,7 +257,11 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
             # Check the distance from the point to polygons in the input mask (returns empty list if point intersects mask).
             pr_pt_dist_list = intersect.check_distance_to(pr_pt, land_poly)
             
-            pt_pt_min_land_dist = min(pr_pt_dist_list)
+            
+            if len(pr_pt_dist_list) > 0:
+                pt_pt_min_land_dist = min(pr_pt_dist_list)
+            else:
+                pt_pt_min_land_dist = 0
             
             # Add to benchmark dictionary.
             benchmark_dict = benchmark(function_start_time, benchmark_dict, "point_land_mask_distanceTo")
@@ -267,7 +271,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                     
                 # Get visibility values.
                 obs_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, dist_range, in_dem, dem_resolution, pr_gdb, out_crs, lmark_geom_list, 
-                                                                      land_poly, out_pts="", out_skyline="", benchmark_dict=benchmark_dict, override_min_dist=pt_pt_min_land_dist)
+                                                                      land_poly, override_min_dist=pt_pt_min_land_dist, sample_ras=sample_raster, benchmark_dict=benchmark_dict)
                 
                 # Obs_dict is dictionary where key is observer height and value is distance dictionary.
                 for obs_z in obs_dict.keys():
@@ -284,12 +288,12 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                         # Find index for distances.
                         d_idx = list.list_index_from_val(d_range, dist_val)
                         
-                        v_angle_sum, v_angle_range, h_angle_sum = vdist_dict[dist_val][0:3]
+                        v_angle_sum, v_angle_max, h_angle_sum = vdist_dict[dist_val][0:3]
                         
                         # Update default arrays.
                         sub_area_array[d_idx, z_idx, y_idx, x_idx] = v_angle_sum
                         sub_sum_x_array[d_idx, z_idx, y_idx, x_idx] = h_angle_sum
-                        sub_max_y_array[d_idx, z_idx, y_idx, x_idx] = v_angle_range
+                        sub_max_y_array[d_idx, z_idx, y_idx, x_idx] = v_angle_max
                         
                         if sample_raster != "":
                             
@@ -381,8 +385,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                        "vis_dist":d_range,
                        "sub_area":sub_area_array,
                        "sub_sum_x":sub_sum_x_array,
-                       "sub_max_y":sub_max_y_array,
-                       "lmrk_count":landmark_count_array}
+                       "sub_max_y":sub_max_y_array}
 
     # Create array dictionary for sample data, if enabled.
     if sample_raster != "":

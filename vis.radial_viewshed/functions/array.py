@@ -465,38 +465,59 @@ def interpolate_2d_radial_array(obs_x, obs_y, obs_z_list, insert_cursor_list, in
 
 #------------------------------------------------------------------------------ 
 
-def array_stats(in_array, vis_list, stop_idx, array_method, ray_method):
+def array_stats(in_array, vis_list, stop_idx, ray_method, array_method):
+    
+    # Wrap iteration in function, so that the script doesn't need to go through the whole list.
+    def iterate(rlist, vlist, ridx):
+        
+        iter_list = []
+        
+        for idx, val in enumerate(rlist):
+            
+            if idx <= stop_idx and vlist[ridx][idx] == 1:
+                
+                iter_list.append(val)
+            
+            elif idx > stop_idx:
+                
+                return iter_list
+                
+        return iter_list
+            
     
     pr_list = []
     
-    for ray_list in in_array:
+    for ray_idx, ray_list in enumerate(in_array):
     
-        iter_list = []
+        iter_list = iterate(ray_list, vis_list, ray_idx)
         
-        for idx, val in enumerate(ray_list):
-            
-            if idx <= stop_idx and vis_list[idx] == 1:
+        if len(iter_list) > 0:
+        
+            # Summarise ray according to method.
+            if ray_method == "MIN":
+                pr_list.append(min(iter_list))
+            elif ray_method == "MAX":
+                pr_list.append(max(iter_list))
+            elif ray_method == "SUM":
+                pr_list.append(sum(iter_list))
+            elif ray_method == "AVG":
+                pr_list.append(sum(iter_list)/len(iter_list))
                 
-                iter_list.append(val)
+        del iter_list
         
-        # Summarise ray according to method.
-        if ray_method == "MIN":
-            pr_list.append(min(iter_list))
-        elif ray_method == "MAX":
-            pr_list.append(max(iter_list))
-        elif ray_method == "SUM":
-            pr_list.append(sum(iter_list))
-        elif ray_method == "AVG":
-            pr_list.append(sum(iter_list)/len(iter_list))
+    if len(pr_list) > 0:
+        # Summarise array according to method.
+        if array_method == "MIN":
+            return min(pr_list)
+        elif array_method == "MAX":
+            return max(pr_list)
+        elif array_method == "SUM":
+            return sum(pr_list)
+        elif array_method == "AVG":
+            return sum(pr_list)/len(pr_list)
     
-    # Summarise array according to method.
-    if array_method == "MIN":
-        return min(pr_list)
-    elif ray_method == "MAX":
-        return max(pr_list)
-    elif ray_method == "SUM":
-        return sum(pr_list)
-    elif ray_method == "AVG":
-        return sum(pr_list)/len(pr_list)
+    #@TODO: WORK OUT WHAT TO DO WITH THESE CASES. ZERO PROBABLY ISN'T THE RIGHT ANSWER.
+    else:
+        return 0
 
 #------------------------------------------------------------------------------ 
