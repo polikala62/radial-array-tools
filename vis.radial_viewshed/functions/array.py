@@ -465,31 +465,18 @@ def interpolate_2d_radial_array(obs_x, obs_y, obs_z_list, insert_cursor_list, in
 
 #------------------------------------------------------------------------------ 
 
-def array_stats(in_array, vis_list, stop_idx, ray_method, array_method):
-    
-    # Wrap iteration in function, so that the script doesn't need to go through the whole list.
-    def iterate(rlist, vlist, ridx):
-        
-        iter_list = []
-        
-        for idx, val in enumerate(rlist):
-            
-            if idx <= stop_idx and vlist[ridx][idx] == 1:
-                
-                iter_list.append(val)
-            
-            elif idx > stop_idx:
-                
-                return iter_list
-                
-        return iter_list
-            
+def array_stats(in_array, vis_list, stop_idx, ray_method, array_method):    
     
     pr_list = []
     
     for ray_idx, ray_list in enumerate(in_array):
-    
-        iter_list = iterate(ray_list, vis_list, ray_idx)
+        
+        clip_list = ray_list[0:stop_idx]
+        
+        iter_list = [clip_list[i] * vis_list[ray_idx][i] for i in range(0, len(clip_list))]
+        
+        #print(iter_list)
+        #iter_list = filter_vis(ray_list[0:ray_idx+1], vis_list, ray_idx)
         
         if len(iter_list) > 0:
         
@@ -506,6 +493,9 @@ def array_stats(in_array, vis_list, stop_idx, ray_method, array_method):
         del iter_list
         
     if len(pr_list) > 0:
+        
+        #print(stop_idx, pr_list)
+        
         # Summarise array according to method.
         if array_method == "MIN":
             return min(pr_list)

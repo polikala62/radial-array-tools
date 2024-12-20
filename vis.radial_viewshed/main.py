@@ -14,7 +14,7 @@ from functions.benchmark import benchmark
 from functions.benchmark import print_benchmark_to_console
 
 # Define function for main loop.
-def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, z_range, sample_raster="", lmark_fc=""):
+def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, z_range, obs_z_offset=1.5, sample_raster="", lmark_fc="", out_dist_list=""):
     
     # Print starting message to console.
     console.console("Starting script...")
@@ -102,23 +102,34 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     console.console("Creating arrays for analysis...")
     
     # Get range values from input (they should all be lists in format: [min, max, increment]).
-    if len(x_range) == 3 and len(y_range) == 3 and len(z_range) == 3 and len(dist_range) == 3: #@TODO: better validation.
+    if len(x_range) == 3 and len(y_range) == 3 and len(z_range) == 3: #@TODO: better validation.
         
         # Get range values as variables.
         x_min, x_max, x_step = x_range
         y_min, y_max, y_step = y_range
         z_min, z_max, z_step = z_range
-        d_min, d_max, d_step = dist_range
         
     else:
         
-        raise Exception("Could not read input ranges. Ranges for x, y, z, and distance should be lists with format [minimum_value, maximum_value, increment].")
+        raise Exception("Could not read input ranges. Ranges for x, y, z should be lists with format [minimum_value, maximum_value, increment].")
     
-    # Create ranges for x, y, z, and distance.
+    # Create ranges for x, y, z.
     x_range = np.arange(x_min, (x_max + x_step), x_step)
     y_range = np.arange(y_min, (y_max + y_step), y_step)
     z_range = np.arange(z_min, (z_max + z_step), z_step)
-    d_range = np.arange(d_min, (d_max + d_step), d_step)
+    
+    #------------------------------------------------------------------------------ 
+    
+    if out_dist_list == "":
+        
+        d_min, d_max, d_step = dist_range
+        d_range = np.arange(d_min, (d_max + d_step), d_step)
+        
+    else:
+        
+        d_min = min(out_dist_list)
+        d_max = max(out_dist_list)
+        d_range = np.array(out_dist_list)
     
     # Create 2D arrays for x, y, z, and distance.
     x_array = np.array([x_range for i in y_range]) #@UnusedVariable
@@ -175,6 +186,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     console.console("X dimension has length: {}.".format(str(len(x_range))),2)
     console.console("Y dimension has length: {}.".format(str(len(y_range))),2)
     console.console("Z dimension has length: {}.".format(str(len(z_range))),2)
+    console.console("D dimension has length: {}.".format(str(len(d_range))),2)
     console.console("3D array has {} data points.".format(str(pr_total)),2)
     
     #===========================================================================
@@ -270,7 +282,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
             if len(pr_pt_dist_list) > 0:
                     
                 # Get visibility values.
-                obs_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, dist_range, in_dem, dem_resolution, pr_gdb, out_crs, lmark_geom_list, 
+                obs_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, d_range, in_dem, dem_resolution, pr_gdb, out_crs, densify_dist, obs_z_offset, lmark_geom_list, 
                                                                       land_poly, override_min_dist=pt_pt_min_land_dist, sample_ras=sample_raster, benchmark_dict=benchmark_dict)
                 
                 # Obs_dict is dictionary where key is observer height and value is distance dictionary.
@@ -292,8 +304,8 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                         
                         # Update default arrays.
                         sub_area_array[d_idx, z_idx, y_idx, x_idx] = v_angle_sum
-                        sub_sum_x_array[d_idx, z_idx, y_idx, x_idx] = h_angle_sum
                         sub_max_y_array[d_idx, z_idx, y_idx, x_idx] = v_angle_max
+                        sub_sum_x_array[d_idx, z_idx, y_idx, x_idx] = h_angle_sum
                         
                         if sample_raster != "":
                             

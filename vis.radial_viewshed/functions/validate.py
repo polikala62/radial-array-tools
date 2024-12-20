@@ -27,5 +27,6 @@ def validate_crs(fc_list):
     
     # If not (or there are no datasets), raise an exception.
     else:
-        
+        print(fc_list)
+        print(sr_list)
         raise Exception("Input datasets do not have the same CRS.")

@@ -5,15 +5,16 @@ Created on Dec 13, 2023
 '''
 
 import arcpy, datetime
-from functions import array, clip, heading, ray, validate
+from functions import array, clip, heading, ray, validate, list
 import output
 from functions.benchmark import benchmark
 
-def radial_viewshed(obs_x, obs_y, obs_z_list, d_range, in_dem_ras, in_dem_res, pr_gdb, pt_crs, 
+def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res, pr_gdb, pt_crs, densify_dist, obs_z_offset=0,
                     lmark_geom_list="", land_fc="", override_min_dist="", sample_ras="", benchmark_dict=""):
     
     # Get distance min, max, and increment from variable.
-    min_dist, max_dist, dist_inc = d_range
+    min_dist = min(dist_list)
+    max_dist = max(dist_list)
     
     # Set minimum distance to land distance, if override value is supplied.
     if override_min_dist != "" and validate.floatable(override_min_dist):
@@ -91,6 +92,8 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, d_range, in_dem_ras, in_dem_res, p
     
     # Create list to hold updated rays.
     array_pt_list = []
+    array_2d_dist_list = []
+    array_null_list = []
     array_sample_list = []
     array_landmark_list = []
     
@@ -109,13 +112,16 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, d_range, in_dem_ras, in_dem_res, p
             function_start_time = datetime.datetime.now()
             
             # Get 2D distance list for vertices in ray.
-            sorted_ray_pt_list, ray_dist_list = ray.sort_vertices_2d(ray_vertex_list)
+            sorted_ray_pt_list, ray_dist_list = ray.sort_vertices_2d(obs_x, obs_y, ray_vertex_list)
             
             # Get z values for vertices as a list.
             sorted_ray_z_list = [i[2] for i in sorted_ray_pt_list]
             
             # Densify ray, returning new point list.
-            densified_ray_pt_list, densified_ray_dist_list = ray.densify_3d_ray(sorted_ray_pt_list[0], sorted_ray_pt_list[-1], ray_dist_list, sorted_ray_z_list, dist_inc)
+            densified_ray_pt_list, densified_ray_dist_list, densified_ray_null_list = ray.densify_3d_ray([obs_x, obs_y], ray_vertex_list[-1], ray_dist_list, sorted_ray_z_list, densify_dist, max_dist)
+            
+            array_2d_dist_list.append(densified_ray_dist_list)
+            array_null_list.append(densified_ray_null_list)
             
             benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.densify_3d_ray")
             
@@ -124,7 +130,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, d_range, in_dem_ras, in_dem_res, p
             function_start_time = datetime.datetime.now()
             
             # Adjust z values in densified point list to account for curvature.
-            pr_ray_pt_list = ray.adjust_curvature(obs_x, obs_y, densified_ray_pt_list)
+            pr_ray_pt_list = ray.adjust_curvature_2(obs_x, obs_y, densified_ray_pt_list)
             
             # Add modified array to list.
             array_pt_list.append(pr_ray_pt_list)
@@ -168,53 +174,72 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, d_range, in_dem_ras, in_dem_res, p
             obs_vis_list = []
             
             # Loop through rays in radial array list.
-            for iter_ray in array_pt_list:
+            for iter_ray_idx, iter_ray in enumerate(array_pt_list):
+                
+                # Get null list for ray.
+                iter_ray_nulls = array_null_list[iter_ray_idx]
                 
                 # Calculate angle for vertices in list, add to observer point list.
-                ray_angle_list = ray.angle_list(obs_x, obs_y, obs_z, iter_ray)
+                ray_angle_list = ray.angle_list(obs_x, obs_y, obs_z, obs_z_offset, iter_ray, iter_ray_nulls)
                 obs_v_angle_list.append(ray_angle_list)
-                
-                # Calculate visibility for vertices in list, add to observer point list.
-                obs_vis_list.append(ray.visibility_list(ray_angle_list))
-            
-            dist_dict = {}
-               
-            # Loop through indices in radial array list.
-            for dist_idx, dist_val in enumerate(densified_ray_dist_list):
                 
                 function_start_time = datetime.datetime.now()
                 
-                # Get stats for vertical angle.
-                v_angle_sum = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "SUM")
-                v_angle_max = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "MAX")
+                # Get z values from list.
+                ray_z_vals = [i[2] for i in iter_ray]
                 
-                # Get stats for horizontal angle.
-                h_angle_sum = array.array_stats(obs_vis_list, obs_vis_list, dist_idx, "MAX", "SUM")
+                # Zip distances and z vals to get list for visibility.
+                vis_list = [[array_2d_dist_list[iter_ray_idx][i], ray_z_vals[i]] for i in range(0, len(ray_z_vals))]
                 
-                # Create output list.
-                out_row = [v_angle_sum, v_angle_max, h_angle_sum]
+                #simp_vis_list = list.simplify_vis_list(vis_list)
                 
-                # Get stats for sample raster, if enabled.
-                if sample_ras != "":
-                    sample_max = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MAX", "MAX")
-                    sample_min = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MIN", "MIN")
-                    sample_avg = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "AVG", "AVG")
+                # Calculate visibility for vertices in list, add to observer point list.
+                #obs_vis_list.append(ray.visibility_list(ray_z_vals, obs_z))
+                obs_vis_list.append(ray.visibility_list_2(obs_z, obs_z_offset, vis_list, iter_ray_nulls))
                 
-                    for i in [sample_max, sample_min, sample_avg]:
-                        out_row.append(i)
+                benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.visibility_list")
                 
-                # Get stats for landmarks, if enabled.
-                if lmark_geom_list != "":
-                    landmark_sum = array.array_stats(array_landmark_list, obs_vis_list, dist_idx, "SUM", "SUM")
+            dist_dict = {}
+            
+            # Loop through indices in radial array list.
+            for dist_idx, dist_val in enumerate(densified_ray_dist_list):
                 
-                    out_row.append(landmark_sum)
-                
-                benchmark_dict = benchmark(function_start_time, benchmark_dict, "array.array_stats")
-                
-                #------------------------------------------------------------------------------ 
-                
-                # Update distance dictionary with rounded values.
-                dist_dict[dist_val] = [round(float(i), 4) for i in out_row]
+                # Only add to output if it's in the input list.
+                if dist_val in dist_list:
+                    
+                    function_start_time = datetime.datetime.now()
+                    #print('v_angle stats', dist_val)
+                    # Get stats for vertical angle.
+                    v_angle_sum = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "SUM")
+                    v_angle_max = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "MAX")
+                    #print('v angle stats end')
+                    # Get stats for horizontal angle.
+                    h_angle_sum = array.array_stats(obs_vis_list, obs_vis_list, dist_idx, "MAX", "SUM")
+                    
+                    # Create output list.
+                    out_row = [v_angle_sum, v_angle_max, h_angle_sum]
+                    
+                    # Get stats for sample raster, if enabled.
+                    if sample_ras != "":
+                        sample_max = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MAX", "MAX")
+                        sample_min = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MIN", "MIN")
+                        sample_avg = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "AVG", "AVG")
+                    
+                        for i in [sample_max, sample_min, sample_avg]:
+                            out_row.append(i)
+                    
+                    # Get stats for landmarks, if enabled.
+                    if lmark_geom_list != "":
+                        landmark_sum = array.array_stats(array_landmark_list, obs_vis_list, dist_idx, "SUM", "SUM")
+                    
+                        out_row.append(landmark_sum)
+                    
+                    benchmark_dict = benchmark(function_start_time, benchmark_dict, "array.array_stats")
+                    
+                    #------------------------------------------------------------------------------ 
+                    
+                    # Update distance dictionary with rounded values.
+                    dist_dict[dist_val] = [round(float(i), 4) for i in out_row]
             
             # Add distance dictionary to observer dictionary as subdictionary.
             obs_dict[obs_z] = dist_dict
