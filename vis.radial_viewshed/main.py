@@ -6,18 +6,42 @@ Created on Mar 7, 2024
 
 # Import libraries.
 import numpy as np
-import arcpy, os, datetime
+import arcpy, json, os, datetime, tqdm
+
+# Disable log history.
+if arcpy.GetLogHistory():
+    arcpy.SetLogHistory(False)
 
 # Import local functions.
 from functions import clip, console, intersect, list, netcdf, validate, viewshed
 from functions.benchmark import benchmark
 from functions.benchmark import print_benchmark_to_console
+from functions import json as pr_json
 
 # Define function for main loop.
-def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, z_range, obs_z_offset=1.5, sample_raster="", lmark_fc="", out_dist_list=""):
+def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, z_range, obs_z_offset=1.5, 
+             sample_raster="", lmark_fc="", out_dist_list="", pt_mask_json='', write_log=False):
     
     # Print starting message to console.
     console.console("Starting script...")
+    
+    #===========================================================================
+    # CONFIRM OVERWRITE
+    #===========================================================================
+    
+    # Never again.
+    if os.path.exists(out_ncdf):
+        
+        console.console("Output '{}' already exists. Enter 'y' to confirm overwrite. Press 'enter' to exit.".format(os.path.basename(out_ncdf)))
+        overwrite_response = input()
+        
+        if overwrite_response.lower() != 'y':
+            
+            raise SystemExit
+    
+    #===========================================================================
+    # SET INITIALISATION VARIABLES
+    #===========================================================================
     
     # Get start time.
     start_time = datetime.datetime.now()
@@ -162,8 +186,8 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     #@TODO: Scan for duplicate IDs and print warning?
     if lmark_fc == "":
         
-        # Return empty list.
-        lmark_geom_list = []
+        # Return empty string.
+        lmark_geom_list = ""
         
         # Print message to console.
         console.console("WARNING: No landmark dataset specified, all landmark values will be zero.", 2)
@@ -187,57 +211,75 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     console.console("Y dimension has length: {}.".format(str(len(y_range))),2)
     console.console("Z dimension has length: {}.".format(str(len(z_range))),2)
     console.console("D dimension has length: {}.".format(str(len(d_range))),2)
-    console.console("3D array has {} data points.".format(str(pr_total)),2)
+    console.console("4D array has {} data points.".format(str(pr_total)),2)
     
     #===========================================================================
     # CHECK POINTS AGAINST POINT MASK.
     #===========================================================================
     
-    console.console("Checking points against point mask...")
-    
-    # Set time for benchmarking.
-    point_mask_start_time = datetime.datetime.now() #@TODO: RE-MERGE THESE TWO, GET RID OF TIME.
-    
-    checkpoints_pr_count = 0
-    checkpoints_pr_total = int(len(x_range) * len(y_range))
-    
-    mask_poly = []
-    
-    with arcpy.da.SearchCursor(pt_mask_fc, ["SHAPE@"]) as cursor: #@UndefinedVariableFromImport
-            for row in cursor:
-                for part in row:
-                    mask_poly.append(part)
-    
-    del cursor
-    
-    # Iterate through indices.
-    for index, x in np.ndenumerate(mask_int_array): #@UnusedVariable
+    if os.path.exists(pt_mask_json):
         
-        # Get indices from iterator.
-        y_idx, x_idx = index
+        console.console("Importing checked points dictionary from '{}'...".format(os.path.basename(pt_mask_json)))
         
-        # Get x, y values for iterated data point.
-        x_val = float(x_range[x_idx])
-        y_val = float(y_range[y_idx])
+        mask_int_array = pr_json.load_json(pt_mask_json)
         
-        pr_pt = arcpy.PointGeometry(arcpy.Point(x_val, y_val))
+    else:
+    
+        console.console("Checking points against point mask...")
         
-        if intersect.check_disjoint(pr_pt, mask_poly) == False:
+        # Set time for benchmarking.
+        point_mask_start_time = datetime.datetime.now() #@TODO: RE-MERGE THESE TWO, GET RID OF TIME.
+        
+        checkpoints_pr_count = 0
+        checkpoints_pr_total = int(len(x_range) * len(y_range))
+        
+        mask_poly = []
+        
+        with arcpy.da.SearchCursor(pt_mask_fc, ["SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+                for row in cursor:
+                    for part in row:
+                        mask_poly.append(part)
+        
+        del cursor
+        
+        # Generate list of mask indices.
+        mask_int_indices = [i for i, j in np.ndenumerate(mask_int_array)] #@UnusedVariable
+        
+        # Iterate through indices.
+        for index in tqdm.tqdm(mask_int_indices, disable=True):
             
-            mask_int_array[y_idx, x_idx] = 1
+            # Get indices from iterator.
+            y_idx, x_idx = index
             
-        checkpoints_pr_count += 1
+            # Get x, y values for iterated data point.
+            x_val = float(x_range[x_idx])
+            y_val = float(y_range[y_idx])
+            
+            pr_pt = arcpy.PointGeometry(arcpy.Point(x_val, y_val))
+            
+            if intersect.check_disjoint(pr_pt, mask_poly) == False:
+                
+                mask_int_array[y_idx, x_idx] = 1
+                
+            checkpoints_pr_count += 1
+            
+            console.prcnt_complete(checkpoints_pr_count, checkpoints_pr_total, 5, point_mask_start_time, leading_spaces=2, leading_text="")
         
-        console.prcnt_complete(checkpoints_pr_count, checkpoints_pr_total, 5, point_mask_start_time, leading_spaces=2, leading_text="")
-    
-    del mask_poly
-    
-    # Add to benchmark dictionary.
-    benchmark_dict = benchmark(point_mask_start_time, benchmark_dict, "chek_pts_against_pt_mask")
-    
-    pr_total = int(np.sum(mask_int_array))
-    
-    console.console("2D array has {} data points that intersect land mask.".format(str(int(pr_total))),2)
+        del mask_poly
+        
+        # Add to benchmark dictionary.
+        benchmark_dict = benchmark(point_mask_start_time, benchmark_dict, "chek_pts_against_pt_mask")
+        
+        pr_total = int(np.sum(mask_int_array))
+        
+        console.console("2D array has {} data points that intersect point mask.".format(str(int(pr_total))),2)
+        
+        # Write points to json, if enabled.
+        if pt_mask_json != '':
+            
+            console.console("Writing checked points dictionary to '{}'...".format(os.path.basename(pt_mask_json)))
+            
+            pr_json.write_json(mask_int_array, pt_mask_json)
     
     #===========================================================================
     # CALCULATE VISIBILITY VALUES.
@@ -247,8 +289,11 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     
     iter_vis_start_time = datetime.datetime.now()
     
+    # (Re)generate list of mask indices.
+    mask_int_indices = [i for i, j in np.ndenumerate(mask_int_array)] #@UnusedVariable
+    
     # Iterate through indices in mask array.
-    for index, x in np.ndenumerate(mask_int_array): #@UnusedVariable
+    for index in tqdm.tqdm(mask_int_indices):
         
         # Get indices from iterator.
         y_idx, x_idx = index
@@ -301,7 +346,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                         d_idx = list.list_index_from_val(d_range, dist_val)
                         
                         v_angle_sum, v_angle_max, h_angle_sum = vdist_dict[dist_val][0:3]
-                        
+                        #print(obs_z, d_idx, v_angle_sum, v_angle_max, h_angle_sum)
                         # Update default arrays.
                         sub_area_array[d_idx, z_idx, y_idx, x_idx] = v_angle_sum
                         sub_max_y_array[d_idx, z_idx, y_idx, x_idx] = v_angle_max
@@ -320,19 +365,20 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                         if lmark_fc != "":
                             
                             # Retrieve values from viewshed output.
-                            landmark_sum = vdist_dict[dist_val[-1]]
+                            landmark_sum = vdist_dict[dist_val][-1]
                             
                             # Update arrays.
                             landmark_count_array[d_idx, z_idx, y_idx, x_idx] = landmark_sum            
             
             pr_count += 1
             
-            console.prcnt_complete(pr_count, pr_total, 1, iter_vis_start_time, leading_spaces=2, leading_text="")
+            #console.prcnt_complete(pr_count, pr_total, 1, iter_vis_start_time, leading_spaces=2, leading_text="")
     
     #===========================================================================
     # GENERATE NETCDF FILE.
     #===========================================================================
     
+    console.console('')
     console.console("Writing NetCDF to file...")
     
     # Define dictionaries.
@@ -349,10 +395,12 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     #------------------------------------------------------------------------------ 
     
     # Create variable dictionary for default variables.
-    var_dict = {"easting":{'datatype':np.float64, 'dimensions':('y','x')},
+    var_dict = {"x":{'datatype':np.float64, 'dimensions':('x')},
+                "y":{'datatype':np.float64, 'dimensions':('y')},
+                "easting":{'datatype':np.float64, 'dimensions':('y','x')},
                 "northing":{'datatype':np.float64, 'dimensions':('y','x')},
-                "obs_height":{'datatype':np.float64, 'dimensions':('z')},
-                "vis_dist":{'datatype':np.float64, 'dimensions':('d')},
+                "z":{'datatype':np.float64, 'dimensions':('z')},
+                "d":{'datatype':np.float64, 'dimensions':('d')},
                 "sub_area":{'datatype':np.float64, 'dimensions':('d','z','y','x')},
                 "sub_sum_x":{'datatype':np.float64, 'dimensions':('d','z','y','x')},
                 "sub_max_y":{'datatype':np.float64, 'dimensions':('d','z','y','x')}}
@@ -370,13 +418,15 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     #------------------------------------------------------------------------------ 
     
     # Create attributes dictionary for default variables.
-    var_atts_dict = {"easting":{'long_name':'easting', 'units':out_crs_units},
-                     "northing":{'long_name':'northing', 'units':out_crs_units},
-                     "obs_height":{'long_name':'observer_height', 'units':'{}_relative_to_vertical_datum'.format(out_crs_units)},
-                     "vis_dist":{'long_name':'visible_distance_limit', 'units':out_crs_units},
-                     "sub_area":{'long_name':'total_subtended_area', 'units':'square_degrees_of_arc'},
-                     "sub_sum_x":{'long_name':'sum_of_horizontal_subtended_area', 'units':'degrees_of_arc'},
-                     "sub_max_y":{'long_name':'maximum_vertical_subtended_area', 'units':'degrees_of_arc'}}
+    var_atts_dict = {"x":{'long_name':'x', 'units':out_crs_units, 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "y":{'long_name':'y', 'units':out_crs_units, 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "easting":{'long_name':'easting', 'units':out_crs_units, 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "northing":{'long_name':'northing', 'units':out_crs_units, 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "z":{'long_name':'observer_height', 'units':'{}_relative_to_vertical_datum'.format(out_crs_units), 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "d":{'long_name':'visible_distance_limit', 'units':out_crs_units, 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "sub_area":{'long_name':'total_subtended_area', 'units':'square_degrees_of_arc', 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "sub_sum_x":{'long_name':'sum_of_horizontal_subtended_area', 'units':'degrees_of_arc', 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'},
+                     "sub_max_y":{'long_name':'maximum_vertical_subtended_area', 'units':'degrees_of_arc', 'coordinates':'easting northing', 'grid_mapping':'spatial_ref'}}
     
     # Create variable dictionary for sample data, if enabled.
     if sample_raster != "":
@@ -391,10 +441,12 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     #------------------------------------------------------------------------------ 
     
     # Create array dictionary for default variables.
-    var_arrays_dict = {"easting":x_array,
+    var_arrays_dict = {"x":x_range,
+                       "y":y_range,
+                       "easting":x_array,
                        "northing":y_array,
-                       "obs_height":z_range,
-                       "vis_dist":d_range,
+                       "z":z_range,
+                       "d":d_range,
                        "sub_area":sub_area_array,
                        "sub_sum_x":sub_sum_x_array,
                        "sub_max_y":sub_max_y_array}
@@ -412,14 +464,32 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     #------------------------------------------------------------------------------ 
     
     # Create NetCDF.
-    netcdf.create_netcdf(out_ncdf, file_dict, dim_dict, var_dict, var_atts_dict, var_arrays_dict)
+    netcdf.create_netcdf(out_ncdf, out_crs, file_dict, dim_dict, var_dict, var_atts_dict, var_arrays_dict)
     
-    #------------------------------------------------------------------------------ 
+    console.console("NetCDF written to '{}'.".format(out_ncdf))
     
-    # Print message to console.
-    console.console("Script finished.")
+    #===========================================================================
+    # WRITE BENCHMARKING & PROCESSING LOGS
+    #===========================================================================
+    
+    param_log_dict = {'out_ncdf':str(out_ncdf),'pr_gdb':str(pr_gdb),'in_dem':str(in_dem),'pt_mask_fc':str(pt_mask_fc),'land_fc':str(land_fc),
+                      'xy_spacing':str(xy_spacing),'dist_range':str(dist_range),'densify_dist':str(densify_dist),'z_range':str(z_range),'obs_z_offset':str(obs_z_offset),
+                      'sample_raster':str(sample_raster),'lmark_fc':str(lmark_fc),'out_dist_list':str(out_dist_list)}
     
     # Print benchmarking messages.
-    print()
-    print_benchmark_to_console(start_time, benchmark_dict)
+    console.console('')
+    benchmark_log_dict = print_benchmark_to_console(start_time, benchmark_dict)
+    console.console('')
     
+    # Write log, if enabled.
+    if write_log:
+        
+        log_fp = os.path.join(os.path.dirname(out_ncdf), "{}_log.json".format(os.path.splitext(os.path.basename(out_ncdf))[0]))
+        with open(log_fp, 'w') as fp:
+            json.dump({'INPUT_PARAMETERS':param_log_dict, 'SCRIPT_TIME': str(datetime.datetime.now()-start_time),'BENCHMARK_TABLE':benchmark_log_dict}, fp, indent=4)
+            
+        console.console("Log file written to '{}'.".format(log_fp))
+        console.console('')
+        
+    # Print message to console.
+    console.console("Script finished!")

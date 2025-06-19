@@ -11,39 +11,40 @@ from arcpy.sa import ExtractValuesToPoints
 # Calculates the clockwise angle between two vectors.
 #===============================================================================
 
-def segment_angle(in_segment): # Segment must be nested list with projected XY coordinate-pairs (i.e. [[x1,y1],[x2,y2]]). Values are in degrees from 0=N.
+def segment_angle(in_segment): # Segment must be list with projected XY coordinate-pair (i.e. [x,y]). Values are in degrees from 0=N.
     
     # Translate segment to origin.
     segment_pt_1, segment_pt_2 = in_segment
     mod_vector = [segment_pt_2[0] - segment_pt_1[0], segment_pt_2[1] - segment_pt_1[1]]
     
     # Define vector where y=1.
-    ref_vector = [0, 1]
+    #ref_vector = [0, 1]
     
     # Calculate the dot product of input vectors.
-    dot = sum([i*j for (i, j) in zip(ref_vector, mod_vector)]) # Calculate without numpy.
+    #dot = sum([i*j for (i, j) in zip(ref_vector, mod_vector)]) # Calculate without numpy.
+    dot = mod_vector[1] # Calculate without numpy.
     
-    # Calculate the magnitudes of input vectors.
-    vector1_mag = math.sqrt((ref_vector[0]**2) + (ref_vector[1]**2))
+    # Calculate the magnitudes of input vector.
     vector2_mag = math.sqrt((mod_vector[0]**2) + (mod_vector[1]**2))
     
     # Calculate the determinant.
-    determinant = ref_vector[0]*mod_vector[1]-ref_vector[1]*mod_vector[0]
+    #determinant = ref_vector[0]*mod_vector[1]-ref_vector[1]*mod_vector[0]
+    determinant = 0-mod_vector[0]
     
     # Attempt to caclulate the angle between the two vectors.
     try:
         
         # Calculate the angle between the two vectors, in degrees.
-        degree_angle = math.degrees(math.acos(dot/(vector1_mag * vector2_mag)))
+        degree_angle = math.degrees(math.acos(dot/vector2_mag))
     
     except ZeroDivisionError:
         
-        raise Exception("Could not calculate angle between vectors with magnitude {} and {} - magnitude of input angle is 0.".format(vector1_mag, vector2_mag))
+        raise Exception("Could not calculate angle between vectors with magnitude 1 and {} - magnitude of input angle is 0.".format(vector2_mag))
         
     except:
         
         # If there is another error, file report.
-        raise Exception("Could not calculate angle between vectors with magnitude {} and {} - unknown error occured.".format(vector1_mag, vector2_mag))
+        raise Exception("Could not calculate angle between vectors with magnitude 1 and {} - unknown error occured.".format(vector2_mag))
         
     if determinant < 0:
         
@@ -189,7 +190,7 @@ def sort_vertices_2d(obs_x, obs_y, ray_pts_list):
 # 
 #===============================================================================
 
-def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, max_dist):
+def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, min_dist, max_dist):
     
     # Create lists to hold output.
     out_pt_list = []
@@ -210,25 +211,32 @@ def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, ma
         # Find point x and y values.
         iter_x, iter_y = distance_bearing_to_vector(ray_angle_2d, iter_dist)
         
-        # Use the distance list to find start and endpoints for the line segment that intersects the point.
-        z_segment = find_segment_from_list(iter_dist, ray_dist_list, ray_z_list)
+        if iter_dist > min_dist:
         
-        # If point is not coincident with line, return elevation zero (i.e. sea level).
-        if z_segment == None:
+            # Use the distance list to find start and endpoints for the line segment that intersects the point.
+            z_segment = find_segment_from_list(iter_dist, ray_dist_list, ray_z_list)
+            
+            # If point is not coincident with line, return elevation zero (i.e. sea level).
+            if z_segment == None:
+                
+                iter_z = 0
+                out_null_list.append(True)
+        
+            else:
+                segment_angle_3d = segment_angle(z_segment)
+                
+                # The z segment's x units are 2d distance from origin, its y units are elevation.
+                z_segment_start_x, z_segment_start_y = z_segment[0]
+                
+                # If z val is the adjacent side of a right triangle in profile view, then 2d distance is opposite side, and segment angle is the angle of the triangle.
+                iter_z = ((iter_dist - z_segment_start_x) / math.tan(math.radians(segment_angle_3d))) + z_segment_start_y
+                
+                out_null_list.append(False)
+        
+        else:
             
             iter_z = 0
             out_null_list.append(True)
-        
-        else:
-            segment_angle_3d = segment_angle(z_segment)
-            
-            # The z segment's x units are 2d distance from origin, its y units are elevation.
-            z_segment_start_x, z_segment_start_y = z_segment[0]
-            
-            # If z val is the adjacent side of a right triangle in profile view, then 2d distance is opposite side, and segment angle is the angle of the triangle.
-            iter_z = ((iter_dist - z_segment_start_x) / math.tan(math.radians(segment_angle_3d))) + z_segment_start_y
-            
-            out_null_list.append(False)
             
         out_pt_list.append([iter_x + start_pt[0], iter_y + start_pt[1], iter_z])
         out_dist_list.append(iter_dist)
@@ -267,6 +275,20 @@ def adjust_curvature(obs_x, obs_y, ray_pts_list):
     return out_list
 
 
+def calc_curvature_offset(pt_dist):
+        
+    # Calculate the angle (in km) from the centre of the earth to the end of the line.
+    a = 0.0089932161 * pt_dist
+    
+    # Get the radius of the earth. (see https://earthcurvature.com/)
+    r = 6371
+    
+    # Calculate earth curvature offset, convert back to metres.
+    curvature_offset = (r * (1 - math.cos(math.radians(a)))) * 1000
+    
+    # Return curvature drop.
+    return float(curvature_offset)
+
 def adjust_curvature_2(obs_x, obs_y, ray_pts_list):
     
     out_list = []
@@ -276,20 +298,14 @@ def adjust_curvature_2(obs_x, obs_y, ray_pts_list):
         
         pt_x, pt_y, pt_z = iter_pt
         
-        # Get the radius of the earth. (see https://earthcurvature.com/)
-        r = 6371
-        
         # Calculate the 2D distance from the observer point to the target point, convert to km.
         point_dist_cartesian = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2) / 1000
         
-        # Calculate the angle (in km) from the centre of the earth to the end of the line.
-        a = 0.009 * point_dist_cartesian
-        
-        # Calculate earth curvature offset, convert back to metres.
-        curvature_offset = r * (1 - math.cos(math.radians(a))) * 1000
+        # Calculate curvature drop.
+        curvature_offset = calc_curvature_offset(point_dist_cartesian)
         
         # Subtract curvature offset from z value.
-        mod_pt_z = round(pt_z - curvature_offset,4)
+        mod_pt_z = float(pt_z - curvature_offset)
         
         out_list.append([pt_x, pt_y, mod_pt_z])
         
@@ -313,7 +329,7 @@ def angle_list(obs_x, obs_y, obs_z, obs_offset, pt_list, null_list):
             out_angle_list.append(0)
         
         else:
-        
+            
             # Get the 2D and 3D distances from observer to target.
             pt_dist_2d = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2)
             pt_dist_3d_above_offset = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2 + ((pt_z-obs_z)-obs_offset)**2)
@@ -330,7 +346,12 @@ def angle_list(obs_x, obs_y, obs_z, obs_offset, pt_list, null_list):
                 pt_angle_below_offset = math.degrees(math.acos(pt_dist_2d/pt_distance_3d_below_offset))
                 
                 out_angle_list.append(pt_angle_above_offset + pt_angle_below_offset)
-            
+                
+            else:
+                
+                out_angle_list.append(pt_angle_above_offset)
+                
+    #print(out_angle_list)
     return out_angle_list
 
 #===============================================================================
@@ -403,13 +424,43 @@ def visibility_list_2(obs_z, obs_offset, check_pt_list, null_list):
         #print(check_pt, vis)
     
     return out_list
+
+# An updated version of the original algorithm.
+def visibility_list_3(obs_z, obs_offset, check_pt_list, null_list): # check_pt_list is a tuple in format [distance-from-origin, elevation].
     
+    # Generate output list.
+    out_list = []
+    
+    # Set maximum z value to observer height.
+    max_val = obs_z
+    
+    # Loop through points.
+    for iter_idx, check_pt in enumerate(check_pt_list):
+        '''
+        if null_list[iter_idx]:
+            check_pt[1] += obs_z
+        '''
+        vis = 0
+        
+        # Skip the first point (assume it's in the null list, and therefore invisible).
+        if iter_idx > 0:
+            
+            if null_list[iter_idx] == False:
+                
+                if check_pt[1] > max_val:
+                    vis = 1
+                    max_val = check_pt[1]
+        
+        out_list.append(vis)
+        #print(check_pt, vis)
+    
+    return out_list
     
 #===============================================================================
 # 
 #===============================================================================
 
-def sample_raster(in_ras, pt_list, coordinate_system):
+def sample_raster(in_ras, pt_list, vis_list, coordinate_system):
     
     # Create list for output.
     out_list = []
@@ -422,8 +473,10 @@ def sample_raster(in_ras, pt_list, coordinate_system):
         
         for oid, row in enumerate(pt_list):
             
-            # Insert row.
-            cursor.insertRow([oid] + row)
+            if vis_list[oid] > 0:
+            
+                # Insert row.
+                cursor.insertRow([oid] + row)
     
     del cursor
     
@@ -439,6 +492,10 @@ def sample_raster(in_ras, pt_list, coordinate_system):
             
                 # Add row value to output list.
                 out_list.append(row[0])
+                
+            else:
+                
+                out_list.append(None)
     
     del cursor
     
@@ -452,7 +509,7 @@ def sample_raster(in_ras, pt_list, coordinate_system):
 # 
 #===============================================================================
 
-def count_landmarks(obs_x, obs_y, max_dist, lmark_geom_list, check_pts_list, in_crs):
+def count_landmarks(obs_x, obs_y, max_dist, lmark_geom_list, check_pts_list, vis_list, in_crs):
     
     out_list = []
     
@@ -464,15 +521,20 @@ def count_landmarks(obs_x, obs_y, max_dist, lmark_geom_list, check_pts_list, in_
     # If there are any landmark geometries left, loop through them.
     if len(lmark_mod_geom_list) > 0:
         
-        for check_pt in check_pts_list:
+        for check_idx, check_pt in enumerate(check_pts_list):
             
             landmark_int = 0
             
-            for check_geometry in lmark_mod_geom_list:
+            if vis_list[check_idx] > 0:
                 
-                if check_geometry.disjoint(check_pt) == False:
+                # Check point may have three coordinates, use only the first two (x and y).
+                mod_check_pt = arcpy.Point(check_pt[0], check_pt[1])
+                
+                for check_geometry in lmark_mod_geom_list:
                     
-                    landmark_int += 1
+                    if check_geometry.disjoint(mod_check_pt) == False:
+                        
+                        landmark_int += 1
                     
             out_list.append(landmark_int)
             

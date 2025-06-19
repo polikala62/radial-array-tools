@@ -3,13 +3,32 @@ Created on Dec 13, 2023
 
 @author: Karl
 '''
+'''
+import os
+from main import vis_ncdf
+from functions import list
+
+# Med test parameters.
+out_ncdf = r"C:\GIS\ArcPro_Projects\Visibility_Testing\Output\med_test_14.nc"
+pr_gdb = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Visibility_Testing.gdb'
+pt_mask_fc = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Features\pt_mask_11\pt_mask_12_3.shp'
+in_dem = r'C:\GIS\DEM\GMTED2010_15_arcsec\gmted_mea150_rc_nulls.tif'
+land_fc = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Features\obstruction_med.shp'
+'''
+'''
+# Malta test parameters.
+out_ncdf = r"C:\GIS\ArcPro_Projects\Visibility_Testing\Output\malta_test_51.nc"
+pt_mask_fc = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Features\pt_mask_malta_03.shp'
+in_dem = r'C:\GIS\ArcPro_Projects\Visibility_Testing\DEM\malta_test_dem.tif'
+xy_spacing = 10000
+'''
 
 import os
 from main import vis_ncdf
 from functions import list
 
 # Set parameters.
-out_ncdf = r"C:\GIS\ArcPro_Projects\Visibility_Testing\Output\med_only_5000m_01.nc"
+out_ncdf = r"C:\GIS\ArcPro_Projects\Visibility_Testing\Output\med_only_5000m_02.nc"
 pr_gdb = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Visibility_Testing.gdb'
 pt_mask_fc = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Features\pt_mask_medonly.shp'
 in_dem = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Rasters\DEM\gmted_mea150_medonly.tif'

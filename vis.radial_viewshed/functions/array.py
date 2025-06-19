@@ -6,6 +6,10 @@ Created on Dec 13, 2023
 
 import arcpy, math
 
+# Disable log history.
+if arcpy.GetLogHistory():
+    arcpy.SetLogHistory(False)
+
 from functions.clip import clip_raster
 from functions.intersect import check_disjoint
 '''
@@ -340,7 +344,7 @@ def interpolate_2d_radial_array_2(obs_x, obs_y, obs_z_list, insert_cursor_list, 
         
                 
         # Read feature vertices to dictionary, with values [X, Y, Z, HEADING].
-        with arcpy.da.SearchCursor(r"memory\array_3d", ["OID@", "SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+        with arcpy.da.SearchCursor(r"memory\array_3d", ["SHAPE@"]) as cursor: #@UndefinedVariableFromImport
         
             # Loop through rows in cursor.
             for row in cursor:
@@ -349,9 +353,9 @@ def interpolate_2d_radial_array_2(obs_x, obs_y, obs_z_list, insert_cursor_list, 
                 vertex_list = []
                 
                 # Check that row has a shape.
-                if row[1] != None:
+                if row[0] != None:
                     
-                    for part in row[1]:
+                    for part in row[0]:
                         
                         for pnt in part:
                             
@@ -465,7 +469,7 @@ def interpolate_2d_radial_array(obs_x, obs_y, obs_z_list, insert_cursor_list, in
 
 #------------------------------------------------------------------------------ 
 
-def array_stats(in_array, vis_list, stop_idx, ray_method, array_method):    
+def array_stats(in_array, vis_list, stop_idx, ray_method, array_method, verbose=False):    
     
     pr_list = []
     
@@ -473,22 +477,34 @@ def array_stats(in_array, vis_list, stop_idx, ray_method, array_method):
         
         clip_list = ray_list[0:stop_idx]
         
-        iter_list = [clip_list[i] * vis_list[ray_idx][i] for i in range(0, len(clip_list))]
+        if verbose:
+            print('stop_idx:', stop_idx)
+            print('ray_idx:', ray_idx)
+            print(len(clip_list), 'in c', [round(i, 4) for i in clip_list])
+            print(len(vis_list), 'in v:', vis_list)
+            print(ray_idx, len(in_array))
+            print('v_rounded: ', [round(i, 4) for i in vis_list[ray_idx]])
+            
+        iter_list = [clip_list[i] for i in range(0, len(clip_list)) if vis_list[ray_idx][i] == 1]
         
-        #print(iter_list)
+        if verbose:
+            print('i', [round(i, 4) for i in iter_list])
+            print()
         #iter_list = filter_vis(ray_list[0:ray_idx+1], vis_list, ray_idx)
         
-        if len(iter_list) > 0:
+        mod_iter_list = [i for i in iter_list if i is not None]
         
+        if len(mod_iter_list) > 0:
+            
             # Summarise ray according to method.
             if ray_method == "MIN":
-                pr_list.append(min(iter_list))
+                pr_list.append(min(mod_iter_list))
             elif ray_method == "MAX":
-                pr_list.append(max(iter_list))
+                pr_list.append(max(mod_iter_list))
             elif ray_method == "SUM":
-                pr_list.append(sum(iter_list))
+                pr_list.append(sum(mod_iter_list))
             elif ray_method == "AVG":
-                pr_list.append(sum(iter_list)/len(iter_list))
+                pr_list.append(sum(mod_iter_list)/len(iter_list))
                 
         del iter_list
         
