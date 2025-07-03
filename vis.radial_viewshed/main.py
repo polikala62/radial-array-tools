@@ -20,7 +20,7 @@ from functions import json as pr_json
 
 # Define function for main loop.
 def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, z_range, obs_z_offset=1.5, 
-             sample_raster="", lmark_fc="", out_dist_list="", pt_mask_json='', write_log=False):
+             sample_raster="", landmark_fc="", override_dist_list="", pt_mask_json='', write_log=False):
     
     # Print starting message to console.
     console.console("Starting script...")
@@ -54,7 +54,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     #===========================================================================
     
     # Get coordinate system by comparing input features (raises exception if CRSsses are different).
-    out_crs = validate.validate_crs([in_dem, pt_mask_fc, land_fc, lmark_fc])
+    out_crs = validate.validate_crs([in_dem, pt_mask_fc, land_fc, landmark_fc])
     
     # Get coordinate system name as variable.
     out_crs_name = out_crs.name
@@ -144,16 +144,16 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     
     #------------------------------------------------------------------------------ 
     
-    if out_dist_list == "":
+    if override_dist_list == "":
         
         d_min, d_max, d_step = dist_range
         d_range = np.arange(d_min, (d_max + d_step), d_step)
         
     else:
         
-        d_min = min(out_dist_list)
-        d_max = max(out_dist_list)
-        d_range = np.array(out_dist_list)
+        d_min = min(override_dist_list)
+        d_max = max(override_dist_list)
+        d_range = np.array(override_dist_list)
     
     # Create 2D arrays for x, y, z, and distance.
     x_array = np.array([x_range for i in y_range]) #@UnusedVariable
@@ -174,7 +174,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         sample_avg_array = np.zeros(out_array_shape, dtype=float, order='C')
     
     # Create arrays for landmark values, if enabled.   
-    if lmark_fc != "":
+    if landmark_fc != "":
         landmark_count_array = np.zeros(out_array_shape, dtype=float, order='C')
     
     # Create array for mask intersection.
@@ -184,7 +184,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     
     # Read landmark polygons to list of geometry objects.
     #@TODO: Scan for duplicate IDs and print warning?
-    if lmark_fc == "":
+    if landmark_fc == "":
         
         # Return empty string.
         lmark_geom_list = ""
@@ -194,7 +194,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         
     else:
         lmark_geom_list = []
-        with arcpy.da.SearchCursor(lmark_fc, ["SHAPE@"]) as cursor: #@UndefinedVariableFromImport
+        with arcpy.da.SearchCursor(landmark_fc, ["SHAPE@"]) as cursor: #@UndefinedVariableFromImport
             for row in cursor:
                 lmark_geom_list.append(row[0])
         
@@ -362,7 +362,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
                             sample_max_array[d_idx, z_idx, y_idx, x_idx] = sample_max
                             sample_avg_array[d_idx, z_idx, y_idx, x_idx] = sample_avg
                             
-                        if lmark_fc != "":
+                        if landmark_fc != "":
                             
                             # Retrieve values from viewshed output.
                             landmark_sum = vdist_dict[dist_val][-1]
@@ -412,7 +412,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         var_dict['sample_avg'] = {'datatype':np.float64, 'dimensions':('d','z','y','x')}
     
     # Create variable dictionary for landmark data, if enabled.  
-    if lmark_fc != "":
+    if landmark_fc != "":
         var_dict["lmrk_count"] = {'datatype':np.float64, 'dimensions':('d','z','y','x')}
     
     #------------------------------------------------------------------------------ 
@@ -435,7 +435,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         var_atts_dict['sample_avg'] = {'long_name':'sample_raster_avg_value', 'units':'cell_value'}
     
     # Create variable dictionary for landmark data, if enabled.
-    if lmark_fc != "":
+    if landmark_fc != "":
         var_atts_dict["lmrk_count"] = {'long_name':'landmark_count', 'units':'number_of_landmarks'}
     
     #------------------------------------------------------------------------------ 
@@ -458,7 +458,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         var_arrays_dict['sample_avg'] = sample_avg_array
     
     # Create array dictionary for landmark data, if enabled.
-    if lmark_fc != "":
+    if landmark_fc != "":
         var_arrays_dict["lmrk_count"] = landmark_count_array
         
     #------------------------------------------------------------------------------ 
@@ -474,7 +474,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     
     param_log_dict = {'out_ncdf':str(out_ncdf),'pr_gdb':str(pr_gdb),'in_dem':str(in_dem),'pt_mask_fc':str(pt_mask_fc),'land_fc':str(land_fc),
                       'xy_spacing':str(xy_spacing),'dist_range':str(dist_range),'densify_dist':str(densify_dist),'z_range':str(z_range),'obs_z_offset':str(obs_z_offset),
-                      'sample_raster':str(sample_raster),'lmark_fc':str(lmark_fc),'out_dist_list':str(out_dist_list)}
+                      'sample_raster':str(sample_raster),'landmark_fc':str(landmark_fc),'out_dist_list':str(override_dist_list)}
     
     # Print benchmarking messages.
     console.console('')

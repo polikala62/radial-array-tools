@@ -5,8 +5,7 @@ Created on Dec 13, 2023
 '''
 
 import arcpy, datetime
-from functions import array, clip, heading, ray, validate, list
-import output
+from functions import array, clip, ray, validate, list
 from functions.benchmark import benchmark
 
 # Disable log history.
@@ -176,8 +175,9 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                 #simp_vis_list = list.simplify_vis_list(vis_list)
                 
                 # Calculate visibility for vertices in list, add to observer point list.
-                #obs_vis_list.append(ray.visibility_list(ray_z_vals, obs_z))
                 obs_vis_list.append(ray.visibility_list_3(obs_z, obs_z_offset, vis_list, iter_ray_nulls))
+                
+                # Remove extra lists from memory.
                 del vis_list, iter_ray_nulls
                 
                 benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.visibility_list")
@@ -243,38 +243,6 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
         
         # Loop through observer points, calculate visibility for all points.
         for obs_z in obs_z_list:
-            '''
-            obs_v_angle_list = []
-            obs_vis_list = []
-            
-            # Loop through rays in radial array list.
-            for iter_ray_idx, iter_ray in enumerate(array_pt_list):
-                
-                # Get null list for ray.
-                iter_ray_nulls = array_null_list[iter_ray_idx]
-                
-                # Calculate angle for vertices in list, add to observer point list.
-                ray_angle_list = ray.angle_list(obs_x, obs_y, obs_z, obs_z_offset, iter_ray, iter_ray_nulls)
-                obs_v_angle_list.append(ray_angle_list)
-                del ray_angle_list
-                
-                function_start_time = datetime.datetime.now()
-                
-                # Get z values from list.
-                ray_z_vals = [i[2] for i in iter_ray]
-                
-                # Zip distances and z vals to get list for visibility.
-                vis_list = [[array_2d_dist_list[iter_ray_idx][i], ray_z_vals[i]] for i in range(0, len(ray_z_vals))]
-                
-                #simp_vis_list = list.simplify_vis_list(vis_list)
-                
-                # Calculate visibility for vertices in list, add to observer point list.
-                #obs_vis_list.append(ray.visibility_list(ray_z_vals, obs_z))
-                obs_vis_list.append(ray.visibility_list_3(obs_z, obs_z_offset, vis_list, iter_ray_nulls))
-                del vis_list, iter_ray_nulls
-                
-                benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.visibility_list")
-            '''
             
             obs_v_angle_list = z_v_angle_dict[str(obs_z)]
             obs_vis_list = z_vis_dict[str(obs_z)]
@@ -290,11 +258,11 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                 if dist_val in dist_list:
                     
                     function_start_time = datetime.datetime.now()
-                    #print('v_angle stats', dist_val)
+                    
                     # Get stats for vertical angle.
                     v_angle_sum = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "SUM")
                     v_angle_max = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "MAX")
-                    #print('v angle stats end')
+                    
                     # Get stats for horizontal angle.
                     h_angle_sum = array.array_stats(obs_vis_list, obs_vis_list, dist_idx, "MAX", "SUM")
                     
@@ -304,7 +272,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                     # Get stats for sample raster, if enabled.
                     if sample_ras != "":
                         
-                        sample_max = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MAX", "MAX", verbose=False)
+                        sample_max = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MAX", "MAX")
                         sample_min = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MIN", "MIN")
                         sample_avg = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "AVG", "AVG")
                     

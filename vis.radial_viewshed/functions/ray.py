@@ -3,7 +3,7 @@ Created on Dec 9, 2024
 
 @author: Karl
 '''
-import arcpy, numpy, math
+import arcpy, math
 from arcpy.sa import ExtractValuesToPoints
 
 #===============================================================================
@@ -96,73 +96,6 @@ def find_segment_from_list(in_dist, dist_list, z_list):
 # 
 #===============================================================================
 
-def do_segments_intersect(seg1, seg2):
-    x1, y1 = seg1[0]
-    x2, y2 = seg1[1]
-    x3, y3 = seg2[0]
-    x4, y4 = seg2[1]
-    
-    # Calculate the direction of the segments
-    d1 = direction(x3, y3, x4, y4, x1, y1)
-    d2 = direction(x3, y3, x4, y4, x2, y2)
-    d3 = direction(x1, y1, x2, y2, x3, y3)
-    d4 = direction(x1, y1, x2, y2, x4, y4)
-    
-    # Check if the segments intersect
-    if (d1 != d2) and (d3 != d4):
-        return True
-    elif (d1 == 0) and on_segment(x3, y3, x4, y4, x1, y1):
-        return True
-    elif (d2 == 0) and on_segment(x3, y3, x4, y4, x2, y2):
-        return True
-    elif (d3 == 0) and on_segment(x1, y1, x2, y2, x3, y3):
-        return True
-    elif (d4 == 0) and on_segment(x1, y1, x2, y2, x4, y4):
-        return True
-    else:
-        return False
-def direction(x1, y1, x2, y2, x3, y3):
-    return (y3-y1)*(x2-x1) - (x3-x1)*(y2-y1)
-def on_segment(x1, y1, x2, y2, x, y):
-    return (min(x1, x2) <= x <= max(x1, x2)) and (min(y1, y2) <= y <= max(y1, y2))
-
-#------------------------------------------------------------------------------ 
-
-def calculate_orientation(x1, y1, x2, y2, x3, y3):
-    return (y2 - y1) * (x3 - x2) - (y3 - y2) * (x2 - x1)
-def calculate_slope(x1, y1, x2, y2):
-    return (y2 - y1) / (x2 - x1)
-
-def do_segments_intersect_2(seg1, seg2):
-    x1, y1 = seg1[0]
-    x2, y2 = seg1[1]
-    x3, y3 = seg2[0]
-    x4, y4 = seg2[1]
-    orientation1 = calculate_orientation(x1, y1, x2, y2, x3, y3)
-    orientation2 = calculate_orientation(x1, y1, x2, y2, x4, y4)
-    orientation3 = calculate_orientation(x3, y3, x4, y4, x1, y1)
-    orientation4 = calculate_orientation(x3, y3, x4, y4, x2, y2)
-    if (orientation1 > 0 and orientation2 < 0) or (orientation1 < 0 and orientation2 > 0):
-        if (orientation3 > 0 and orientation4 < 0) or (orientation3 < 0 and orientation4 > 0):
-            return True
-    if orientation1 == 0 and is_point_on_segment(x1, y1, x2, y2, x3, y3):
-        return True
-    if orientation2 == 0 and is_point_on_segment(x1, y1, x2, y2, x4, y4):
-        return True
-    if orientation3 == 0 and is_point_on_segment(x3, y3, x4, y4, x1, y1):
-        return True
-    if orientation4 == 0 and is_point_on_segment(x3, y3, x4, y4, x2, y2):
-        return True
-    return False
-def is_point_on_segment(x1, y1, x2, y2, x, y):
-    if min(x1, x2) <= x <= max(x1, x2) and min(y1, y2) <= y <= max(y1, y2):
-        return True
-    return False
-
-#===============================================================================
-# 
-#===============================================================================
-
 def sort_vertices_2d(obs_x, obs_y, ray_pts_list):
     
     ray_dist_list = []
@@ -250,7 +183,7 @@ def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, mi
 #===============================================================================
 # 
 #===============================================================================
-
+'''
 def adjust_curvature(obs_x, obs_y, ray_pts_list):
     
     out_list = []
@@ -274,7 +207,7 @@ def adjust_curvature(obs_x, obs_y, ray_pts_list):
         
     return out_list
 
-
+'''
 def calc_curvature_offset(pt_dist):
         
     # Calculate the angle (in km) from the centre of the earth to the end of the line.
@@ -312,118 +245,76 @@ def adjust_curvature_2(obs_x, obs_y, ray_pts_list):
     return out_list
 
 #===============================================================================
-# 
+# ANGLE LIST
+# This function iterates the 'angle_above_horizon' function for elements of an input list, eliminating entries that are in a list of null values.
 #===============================================================================
 
-def angle_list(obs_x, obs_y, obs_z, obs_offset, pt_list, null_list):
+def angle_list(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_list, null_list):
     
+    # Create list for ouptut.
     out_angle_list = []
     
-    # Find angle defined by right triangle where hypotenuse is defined by observer point and terrain height at target.
+    # Loop through points, indices in input point list.
     for iter_idx, iter_pt in enumerate(pt_list):
         
+        # Get point coordinates.
         pt_x, pt_y, pt_z = iter_pt
         
+        # Check if point index is 'True' in null_list, and append None if so.
         if null_list[iter_idx]:
-            
-            out_angle_list.append(0)
+            out_angle_list.append(None)
         
+        # Compute angle above horizon and add it to list.
         else:
-            
-            # Get the 2D and 3D distances from observer to target.
-            pt_dist_2d = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2)
-            pt_dist_3d_above_offset = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2 + ((pt_z-obs_z)-obs_offset)**2)
-            
-            # Assume that the 2D and 3D distances are equivalent to adjacent side / hypotenuse of a right triangle in profile view.
-            pt_angle_above_offset = math.degrees(math.acos(pt_dist_2d/pt_dist_3d_above_offset))
-            
-            # If observer is above sea level, calculate offset by finding angle where hypotenuse is defined by obsever point and sea level at target.
-            if obs_offset > 0:
-                
-                pt_distance_3d_below_offset = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2 + obs_offset**2)
-                
-                # Assume that the 2D and 3D distances are equivalent to adjacent side / hypotenuse of a right triangle in profile view.
-                pt_angle_below_offset = math.degrees(math.acos(pt_dist_2d/pt_distance_3d_below_offset))
-                
-                out_angle_list.append(pt_angle_above_offset + pt_angle_below_offset)
-                
-            else:
-                
-                out_angle_list.append(pt_angle_above_offset)
-                
-    #print(out_angle_list)
+            pt_angle = angle_above_horizon(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_x, pt_y, pt_z)
+            out_angle_list.append(pt_angle)
+    
+    # Return output list.
     return out_angle_list
 
 #===============================================================================
-# 
+# ANGLE ABOVE HORIZON
+# This function measures the angle defined by an observer point, the lowest visibile point of land, and the highest visible point of land. It accounts
+# for observer height by calculating angles below and above the viewing horizon, if applicable.
 #===============================================================================
 
-def visibility_list(check_list, obs_z):
+def angle_above_horizon(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_x, pt_y, pt_z):
     
-    out_vis_list = []
+    # Calculate the elevation of the observer.
+    obs_z = obs_surface_z + obs_z_offset
     
-    max_val = obs_z
+    # Calculate difference between point elevation and observer elevation. If it's negative, the point is below the horizon.
+    obs_pt_z_diff = pt_z - obs_z
     
-    for iter_val in check_list:
+    # Calculate the 2D and 3D distances from observer to target.
+    pt_dist_2d = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2)
+    pt_dist_3d_above_offset = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2 + ((pt_z-(obs_surface_z+obs_z_offset)))**2)
+    
+    # Assume that the 2D and 3D distances are equivalent to adjacent side / hypotenuse of a right triangle in profile view, and get the result in degrees.
+    pt_angle_above_offset = math.degrees(math.acos(pt_dist_2d/pt_dist_3d_above_offset))
+    
+    # If observer is above sea level and point is above the horizon, calculate offset by finding angle where hypotenuse is defined by obsever point and sea level at target.
+    if obs_z_offset > 0 and obs_pt_z_diff > 0:
         
-        # Add 1 to list if it is greater than the running maximum.
-        if iter_val >= max_val:
-            
-            out_vis_list.append(1)
-            
-            # Update running max if it is higher than the observer.
-            max_val = iter_val
-                
-        # If not, it's obstructed. Add zero to list to keep it in the correct shape.
-        else:
-            out_vis_list.append(0)
-        #print(obs_z, iter_val, obs_level)
-    #print()
-    return out_vis_list
+        pt_distance_3d_below_offset = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2 + obs_z_offset**2)
+        
+        # Assume that the 2D and 3D distances are equivalent to adjacent side / hypotenuse of a right triangle in profile view, and get the result in degrees.
+        pt_angle_below_offset = math.degrees(math.acos(pt_dist_2d/pt_distance_3d_below_offset))
+        
+        # Return sum of angles above and below the line defined by obs_z.
+        return (pt_angle_above_offset + pt_angle_below_offset)
+    
+    # If point is below the horizon, return a negative angle to indicate the point does not rise above the horizon.
+    elif obs_pt_z_diff <= 0:
+        return pt_angle_above_offset * -1
+    
+    # Otherwise, return the angle above the horizon.
+    else:
+        return (pt_angle_above_offset)
 
-
-def check_list_for_intersect(obs_pt, tar_pt, iter_pt_list):
-    
-    check_segment = [obs_pt, tar_pt]
-    
-    for iter_idx in range(1, len(iter_pt_list)):
-        
-        iter_segment = [iter_pt_list[iter_idx-1], iter_pt_list[iter_idx]]
-        
-        if do_segments_intersect_2(check_segment, iter_segment):
-            
-            return True
-        
-    return False
-
-def visibility_list_2(obs_z, obs_offset, check_pt_list, null_list):
-    
-    # Generate output list.
-    out_list = []
-    
-    # Loop through points.
-    for iter_idx, check_pt in enumerate(check_pt_list):
-        '''
-        if null_list[iter_idx]:
-            check_pt[1] += obs_z
-        '''
-        vis = 0
-        
-        if iter_idx > 0:
-            
-            if null_list[iter_idx] == False:
-            
-                # Clip list to index (not including iterated point), and pass to check function.
-                int_result = check_list_for_intersect([0, obs_z + obs_offset], check_pt, check_pt_list[0:iter_idx])
-                
-                if int_result == False:
-                    
-                    vis=1
-        
-        out_list.append(vis)
-        #print(check_pt, vis)
-    
-    return out_list
+#===============================================================================
+# 
+#===============================================================================
 
 # An updated version of the original algorithm.
 def visibility_list_3(obs_z, obs_offset, check_pt_list, null_list): # check_pt_list is a tuple in format [distance-from-origin, elevation].

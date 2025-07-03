@@ -9,13 +9,13 @@ from main import vis_ncdf
 from functions import list
 
 # Set parameters.
-out_ncdf = r"C:\GIS\ArcPro_Projects\PM_Med_Visibility\Output\cyclades_500m_01.nc"
+out_ncdf = r"C:\GIS\ArcPro_Projects\PM_Med_Visibility\Output\cyclades_1000m_02.nc"
 pr_gdb = r'C:\GIS\ArcPro_Projects\Visibility_Testing\Visibility_Testing.gdb'
 pt_mask_fc = r'C:\GIS\ArcPro_Projects\PM_Med_Visibility\Feature\cyclades_vis_inputs\cyclades_pt_mask.shp'
 in_dem = r'C:\GIS\ArcPro_Projects\PM_Med_Visibility\Raster\cyclades_vis_dem\cyclades_vis_dem_100km.tif'
 land_fc = r'C:\GIS\ArcPro_Projects\PM_Med_Visibility\Feature\cyclades_vis_inputs\cyclades_obstructions_detailed_100km.shp'
 
-xy_spacing = 500
+xy_spacing = 10000
 dist_range = [0,70000,500]
 z_range = [-2,2,0.5]
 

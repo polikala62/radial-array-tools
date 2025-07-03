@@ -39,8 +39,8 @@ dist_range = [0,150000,1000]
 z_range = [-2,2,0.5]
 
 sample_raster = ""
-lmark_fc = ""
-out_dist_list = list.wmo_dist_list_2(150000)
+landmark_fc = ""
+override_dist_list = list.wmo_dist_list_2(150000)
 densify_dist = 500
 obs_z_offset = 1.5
 write_output = True
@@ -48,5 +48,6 @@ write_output = True
 pt_mask_json = ''
 
 
-vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, z_range, obs_z_offset, sample_raster, lmark_fc, out_dist_list, pt_mask_json, write_output)
+vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, z_range, 
+         obs_z_offset, sample_raster, landmark_fc, override_dist_list, pt_mask_json, write_output)
 
