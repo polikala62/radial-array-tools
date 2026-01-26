@@ -7,14 +7,17 @@ These functions retrieve data from, create, and append to NetCDF files. Written 
 '''
 
 import netCDF4 as nc
-import numpy as np
 
-def create_netcdf(out_ncdf_path, file_dict, dim_dict, var_dict, var_atts_dict, var_arrays_dict):
+def create_netcdf(out_ncdf_path, out_crs, file_dict, dim_dict, var_dict, var_atts_dict, var_arrays_dict):
     
     with nc.Dataset(out_ncdf_path, 'w', format="NETCDF4") as output:
         
         # Set global attributes for file.
         output.setncatts(file_dict)
+        
+        # Create variable to hold crs information.
+        output.createVariable('spatial_ref', 'int32')
+        output['spatial_ref'].setncatts({'spatial_ref':str(out_crs.exportToString('WKT2')), 'grid_mapping_name':'spatial_ref'})
         
         # Set dimensions. Dimension dictionary should look like {Y: <class 'netCDF4._netCDF4.Dimension'>: name = 'Y', size = 471}
         for dim_name in dim_dict.keys():

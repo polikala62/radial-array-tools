@@ -23,3 +23,10 @@ def list_index_from_val(in_list, in_val):
     else:
         
         raise Exception("Found multiple instances of value '{}' in list '{}'.".format(in_val, ",".join(in_list)))
+    
+    
+def vis_dict_to_list(z_vis_dict, ray_idx):
+    
+    for obs_pt in z_vis_dict.keys():
+        
+        pass

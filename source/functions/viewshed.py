@@ -186,54 +186,55 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
             z_vis_dict[str(obs_z)] = obs_vis_list
             z_v_angle_dict[str(obs_z)] = obs_v_angle_list
             
-        #------------------------------------------------------------------------------ 
-        
-        # Loop through rays again.
-        for ray_idx, pr_ray_pt_list in enumerate(array_pt_list):
-        
-            # Create consensus visibility list.
-            consensus_vis_list = list.vis_dict_to_list(z_vis_dict, ray_idx)
-            
             #------------------------------------------------------------------------------ 
             
-            # Create list of sample values, if sampling is enabled, and add to list.
-            if sample_ras != "":
+            # Loop through rays again.
+            for ray_idx, pr_ray_pt_list in enumerate(array_pt_list):
                 
-                # Check if any points are visible.
-                if sum(consensus_vis_list) > 0:
+                # Create consensus visibility list.
+                #consensus_vis_list = list.vis_dict_to_list(z_vis_dict, ray_idx)
+                consensus_vis_list = obs_vis_list
                 
-                    function_start_time = datetime.datetime.now()
-                    
-                    array_sample_list.append(ray.sample_raster(sample_ras, pr_ray_pt_list, consensus_vis_list, pt_crs))
-                    
-                    benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.sample_raster")
-                    
-                else:
-                    
-                    # Add empty list.
-                    array_sample_list.append([0 for i in range(0,len(consensus_vis_list))])
-            
-            #------------------------------------------------------------------------------ 
+                #------------------------------------------------------------------------------ 
                 
-            # Create list of landmark values, if enabled, and add to list.
-            if lmark_geom_list != "":
+                # Create list of sample values, if sampling is enabled, and add to list.
+                if sample_ras != "":
+                    
+                    # Check if any points are visible.
+                    if sum(consensus_vis_list) > 0:
+                    
+                        function_start_time = datetime.datetime.now()
+                        
+                        array_sample_list.append(ray.sample_raster(sample_ras, pr_ray_pt_list, consensus_vis_list, pt_crs))
+                        
+                        benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.sample_raster")
+                        
+                    else:
+                        
+                        # Add empty list.
+                        array_sample_list.append([0 for i in range(0,len(consensus_vis_list))])
                 
-                # Check if any points are visible.
-                if sum(consensus_vis_list) > 0:
+                #------------------------------------------------------------------------------ 
+                    
+                # Create list of landmark values, if enabled, and add to list.
+                if lmark_geom_list != "":
+                    
+                    # Check if any points are visible.
+                    if sum(consensus_vis_list) > 0:
+                    
+                        function_start_time = datetime.datetime.now()
+                        
+                        array_landmark_list.append(ray.count_landmarks(obs_x, obs_y, max_dist, lmark_geom_list, pr_ray_pt_list, consensus_vis_list, pt_crs))
+                        
+                        benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.count_landmarks")
+                        
+                    else:
+                        
+                        # Add empty list.
+                        array_landmark_list.append([None for i in range(0,len(consensus_vis_list))])
                 
-                    function_start_time = datetime.datetime.now()
-                    
-                    array_landmark_list.append(ray.count_landmarks(obs_x, obs_y, max_dist, lmark_geom_list, pr_ray_pt_list, consensus_vis_list, pt_crs))
-                    
-                    benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.count_landmarks")
-                    
-                else:
-                    
-                    # Add empty list.
-                    array_landmark_list.append([None for i in range(0,len(consensus_vis_list))])
-            
-            # Delete lists.
-            del pr_ray_pt_list
+                # Delete lists.
+                del pr_ray_pt_list
             
         #------------------------------------------------------------------------------ 
         # LOOP THROUGH OBSERVERS AND UPDATE SUMMARY VALUES.

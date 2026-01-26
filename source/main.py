@@ -293,7 +293,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     mask_int_indices = [i for i, j in np.ndenumerate(mask_int_array)] #@UnusedVariable
     
     # Iterate through indices in mask array.
-    for index in tqdm.tqdm(mask_int_indices):
+    for index in tqdm.tqdm(mask_int_indices, miniters=int(len(mask_int_indices)/100), maxinterval=86400):
         
         # Get indices from iterator.
         y_idx, x_idx = index
