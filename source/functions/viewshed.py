@@ -255,8 +255,11 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
             # Loop through indices in radial array list.
             for dist_idx, dist_val in enumerate(densified_ray_dist_list):
                 
-                # Only add to output if it's in the input list.
-                if dist_val in dist_list:
+                # Find the nearest value from the input dist_list.
+                nearest_input_dist_val = list.nearest_dist_val(dist_val, dist_list, densify_dist)
+                
+                # Script returns None if no values were found within the threshold distance.
+                if nearest_input_dist_val != None:
                     
                     function_start_time = datetime.datetime.now()
                     
@@ -291,7 +294,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                     #------------------------------------------------------------------------------ 
                     
                     # Update distance dictionary with rounded values.
-                    dist_dict[dist_val] = [float(round(i, 4)) for i in out_row]
+                    dist_dict[nearest_input_dist_val] = [float(round(i, 4)) for i in out_row]
             
             # Add distance dictionary to observer dictionary as subdictionary.
             obs_dict[obs_z] = dist_dict

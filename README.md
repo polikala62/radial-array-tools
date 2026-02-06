@@ -6,69 +6,70 @@ These scripts incorporate elements of scripts that I designed during my Masters 
 
 This repository is currently being updated to prepare for initial release.
 
-## Quick Start Guide
+## VIS_NETCDF
+
+This script produces a multidimensional NetCDF file containing angular visibility indices representing the visibility of land as viewed from the sea. For more details, see Smith & Hulin 2026, in the bibliography below.
+
+### Quick Start Guide
 
 To run the visibility model, run *vis_netcdf.py* in the *source* folder of the repository. This will prompt the user to use a default path (which may be altered in the .py file), or
 enter a path manually. The path must be to a valid .json file containing model parameters (see *Script Inputs and Outputs* for the parameters list).
 
 The script is currently configured to produce a multidimensional NetCDF file (see bibliography, below). If the input 'out_ncdf' path already exists, the script will ask you to confirm before overwriting it.
 
-## Required Script Inputs
+### Required Script Inputs
 
-### out_ncdf
+ - *out_ncdf*: The output file produced by the script. This parameter should be a string containing a valid path to a NetCDF output file. This path should use double-backslashes and have the extension '.nc'.
 
-This is the output file produced by the script. This parameter should be a string containing a valid path to a NetCDF output file. This path should use double-backslashes and have the extension '.nc'.
 
-### pr_gdb
+ - *pr_gdb*: The geodatabase used for scratch datasets. This parameter should be a string containing a valid path to an ArcGIS geodatabase. This path should use double-backslashes and have the extension '.gdb'.
 
-This is the geodatabase used for scratch datasets. This parameter should be a string containing a valid path to an ArcGIS geodatabase. This path should use double-backslashes and have the extension '.gdb'.
 
-### in_dem
+ - *in_dem*: The elevation model used to determine whether sight-lines are obstructed by terrain. The vertical units (i.e. metres above sea level) used by this raster must conform to those used elsewhere in the input parameters. This parameter should be a string containing a valid path to georeferenced raster image. This path should use double-backslashes. Currently the script has only been tested with .tif files.
 
-This is the elevation model used to determine whether sight-lines are obstructed by terrain. This parameter should be a string containing a valid path to georeferenced raster image. This path should use double-backslashes. Currently the script has only been tested with .tif files.
 
-### pt_mask_fc
+ - *pt_mask_fc*: Features which serve as a geographic constraint on the output (i.e. the 'outer bounds' of the model area). This parameter should be a string containing a valid path to ESRI shapefile. This path should use double-backslashes and have the extension '.shp'.
 
-These are features which serve as a geographic contraint on the output (i.e. the 'outer bounds' of the model area). This parameter should be a string containing a valid path to ESRI shapefile. This path should use double-backslashes and have the extension '.shp'.
 
-### land_fc
+ - *land_fc*: Features which allow the script to eliminate points on land. This parameter should be a string containing a valid path to ESRI shapefile. This path should use double-backslashes and have the extension '.shp'. Currently the script requires a valid file.
 
-These are features which allow the script to eliminate points on land. This parameter should be a string containing a valid path to ESRI shapefile. This path should use double-backslashes and have the extension '.shp'. Currently the script requires a valid file.
 
-### xy_spacing
+ - *xy_spacing*: Controls the cartesian resolution of the output (its 'XY' resolution). It should be a positive numeric value (currently the script has only been tested with integers).
 
-This parameter constrols the cartesian resolution of the output (its 'XY' resolution). It should be a positive numeric value (currently the script has only been tested with integers).
 
-### dist_range
+ - *dist_range*: Controls the 'maximum visible distances' checked for visibility by the script. It should be a list of numeric values (currently the script has only been tested with integers).
 
-This parameter controls the 'maximum visible distances' checked for visibility by the script. It should be a list of numeric values (currently the script has only been tested with integers).
 
-### densify_dist
+ - *densify_dist*: Controls the density at which individual vectors in the radial array will sample the input DEM. Lower values will produce better results, at the cost of increased computation. It should be a list of numeric values (currently the script has only been tested with integers).
 
-This parameter controls the density at which individual vectors in the radial array will sample the input DEM. Lower values will produce better results, at the cost of increased computation. It should be a list of numeric values (currently the script has only been tested with integers).
 
-### z_range
+ - *obs_z_range*: Controls observer heights used by the script. It should be a list of numeric values (currently the script has only been tested with integers).
 
-This parameter controls observer heights used by the script. It should be a list of numeric values (currently the script has only been tested with integers).
 
-## Optional Script Inputs
+### Optional Script Inputs
 
-### obs_z_offset
+ - *obs_z_offset*: Adds an offset (in vertical units) to the observer. This is meant to represent the height of an observer above the land/sea surface. It should be a numeric value. By default, it is set to zero.
 
-### sample_raster
 
-### landmark_fc
+ - *sample_raster*: WIP
 
-### override_dist_list
 
-### pt_mask_json
+ - *landmark_fc*: WIP
 
-### write_log
 
-## Demo
+ - *override_dist_list*: WIP
+
+
+ - *pt_mask_json*: WIP
+
+
+ - *write_log*: WIP
+
+
+### Demo
 
 WIP
 
-## Bibliography
+### Bibliography
 
 WIP

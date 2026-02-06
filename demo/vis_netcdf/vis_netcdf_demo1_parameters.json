@@ -1,0 +1,19 @@
+{
+  "out_ncdf": "C:\\Users\\Karl Smith\\git\\radial-array-tools\\demo\\vis_netcdf\\output\\vis_netcdf_demo1_output.nc",
+  "pr_gdb": "C:\\Users\\Karl Smith\\git\\radial-array-tools\\demo\\vis_netcdf\\vis_netcdf.gdb",
+  "in_dem": "C:\\Users\\Karl Smith\\git\\radial-array-tools\\demo\\vis_netcdf\\input_data\\vis_netcdf_demo1_dem.tif",
+  "pt_mask_fc": "C:\\Users\\Karl Smith\\git\\radial-array-tools\\demo\\vis_netcdf\\input_data\\vis_netcdf_demo1_ptmask.shp",
+  "land_fc": "C:\\Users\\Karl Smith\\git\\radial-array-tools\\demo\\vis_netcdf\\input_data\\vis_netcdf_demo1_landmask.shp",
+  "xy_spacing": 1000,
+  "dist_range": [
+    0,
+    45000,
+    15000
+  ],
+  "densify_dist": 500,
+  "obs_z_range": [
+    -10,
+    10,
+    10
+  ]
+}
