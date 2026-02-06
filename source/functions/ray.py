@@ -132,20 +132,19 @@ def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, mi
     
     # Find length of ray.
     #ray_length = math.sqrt((start_pt[1]-end_pt[1])**2 + (start_pt[0]-end_pt[0])**2)
-    ray_length = max_dist
     
     # Find angle for ray.
     ray_angle_2d = segment_angle([start_pt, end_pt])
     
     # Loop through distance increments.
-    iter_dist = densify_dist
-    while iter_dist <= (ray_length):
+    iter_dist = float(densify_dist)
+    while iter_dist <= max_dist:
     
         # Find point x and y values.
         iter_x, iter_y = distance_bearing_to_vector(ray_angle_2d, iter_dist)
         
         if iter_dist > min_dist:
-        
+            
             # Use the distance list to find start and endpoints for the line segment that intersects the point.
             z_segment = find_segment_from_list(iter_dist, ray_dist_list, ray_z_list)
             
@@ -175,7 +174,7 @@ def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, mi
         out_dist_list.append(iter_dist)
         
         # Increment iter_dist.
-        iter_dist += densify_dist
+        iter_dist += float(densify_dist)
         
     # Return list.
     return out_pt_list, out_dist_list, out_null_list

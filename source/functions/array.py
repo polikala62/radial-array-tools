@@ -12,7 +12,7 @@ if arcpy.GetLogHistory():
 
 from functions.intersect import check_disjoint
 
-def sort_pts_by_dist_2d(origin_pt, pt_list, multiplier=10000):
+def sort_pts_by_dist_2d(origin_pt, pt_list, multiplier=1):
     
     out_list = []
     
