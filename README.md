@@ -14,9 +14,6 @@ This project uses Python scripts and ArcGIS geoprocessing tools to perform visib
 
 
 
-This repository is currently being updated to prepare for initial release.
-
-
 
 There is currently one fully-functional, (mostly) commented script in this 'toolbox', called 'vis\_netcdf'. It uses functions in 'radial-array-tools\\source\\functions'. Not all functions in 'radial-array-tools\\source\\functions' are used by 'vis\_netcdf' - many have been used in other projects. If you come across one that looks useful, let me know and I will consider making a dedicated tool for it!
 
