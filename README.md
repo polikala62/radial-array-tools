@@ -30,7 +30,7 @@ This script produces a multidimensional NetCDF file containing angular visibilit
 
 
 
-##### 1.1 *vis\_netcdf* Quick Start Guide
+#### 1.1 *vis\_netcdf* Quick Start Guide
 
 To run the visibility model, run *vis\_netcdf.py* in the *source* folder of the repository. This will prompt the user to use a default path (which may be altered in the .py file), or
 enter a path manually. The path must be to a valid .json file containing model parameters (see *Script Inputs and Outputs* for the parameters list).
@@ -39,7 +39,7 @@ The script is currently configured to produce a multidimensional NetCDF file (se
 
 
 
-##### 1.2 *vis\_netcdf* Required Script Inputs
+#### 1.2 *vis\_netcdf* Required Script Inputs
 
 
 
@@ -79,7 +79,7 @@ The script is currently configured to produce a multidimensional NetCDF file (se
 
 
 
-##### 1.3 *vis\_netcdf* Optional Script Inputs
+#### 1.3 *vis\_netcdf* Optional Script Inputs
 
 
 
@@ -113,7 +113,7 @@ The script is currently configured to produce a multidimensional NetCDF file (se
 
 
 
-##### 1.4 *vis\_netcdf* Demo
+#### 1.4 *vis\_netcdf* Demo
 
 
 
@@ -127,10 +127,6 @@ Currently two demos have been prepared in the directory '\\radial-array-tools\\d
 
 
 
-Danielson, J.J., Gesch, D.B., 2011. *Global Multi-resolution Terrain Elevation Data 2010 (GMTED2010) (Open-File Report No. 1073)*. U.S. Department of the Interior / U.S. Geological Survey, Reston, Virginia.
-
-
-
 Lonergan, C., Hedley, N., 2016. *Unpacking isovists: a framework for 3D spatial visibility analysis*. Cartography and Geographic Information Science 43, 87–102.
 
 
@@ -139,7 +135,7 @@ Pouncett, J., 2013. *Expanding Horizons: Visibility, Monuments and Topography*, 
 
 
 
-Rew, R., Davis, G., 1990. *NetCDF: an interface for scientific data access*. IEEE Computer Graphics and Applications 10, 76–82. https://doi.org/10.1109/38.56302
+Rew, R., Davis, G., 1990. *NetCDF: an interface for scientific data access*. IEEE Computer Graphics and Applications 10, 76–82.
 
 
 
