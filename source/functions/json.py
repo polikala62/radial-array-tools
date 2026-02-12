@@ -5,6 +5,10 @@ Created on 24 Mar 2025
 '''
 import os, json
 
+#===============================================================================
+# Writes .json file.
+#===============================================================================
+
 def write_json(in_dict, in_path):
     
     if os.path.exists(in_path):
@@ -13,7 +17,11 @@ def write_json(in_dict, in_path):
     out_file = open(in_path, "w")
     json.dump(in_dict, out_file)
     out_file.close()
-    
+
+#===============================================================================
+# Loads .json file.
+#===============================================================================
+
 def load_json(in_path):
     out_file = open(in_path)
     out_dict = json.load(out_file)

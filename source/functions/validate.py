@@ -8,7 +8,7 @@ import arcpy, os
 from functions import console
 
 #===============================================================================
-# 
+# Check if value can be cast to float.
 #===============================================================================
 
 def floatable(in_val):
@@ -19,10 +19,9 @@ def floatable(in_val):
         raise Exception("Could not cast value '{}' to float.".format(in_val))
 
 #===============================================================================
-# 
+# Checks that input datasets have the same coordinate system.
 #===============================================================================
 
-# Create function to check that input datasets have the same coordinate system.
 def validate_crs(fc_list):
     
     # Get list of spatial reference object names for features (ignore empty strings).
@@ -41,10 +40,9 @@ def validate_crs(fc_list):
         raise Exception("Input datasets do not have the same CRS.")
     
 #===============================================================================
-# 
+# Checks if strings are valid paths.
 #===============================================================================
 
-# Checks if strings are valid paths.
 def check_paths(path_list):
     
     path_msglist = []
@@ -71,13 +69,14 @@ def check_paths(path_list):
         raise Exception("The following paths are invalid:\n{}".format("".join(path_msglist)))
     
 #===============================================================================
-# 
+# Checks that 'densify distance' is not greater than the 'distance range', and 
+# prints a warning if the distance is too large.
 #===============================================================================
 
 def check_densify_dist(densify_dist, dist_list):
     
     # Find the minimum distance between elements in the dist_list.
-    min_dist_dist = min([abs(dist_list[i]-dist_list[i-1]) for i, j in enumerate(dist_list[1:])])
+    min_dist_dist = min([abs(dist_list[i]-dist_list[i-1]) for i, j in enumerate(dist_list[1:])]) #@UnusedVariable
     
     if densify_dist >= min_dist_dist:
         

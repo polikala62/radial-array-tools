@@ -6,7 +6,10 @@ Created on Mar 12, 2024
 
 import datetime
 
-# Define timing function for the end of target function, and write output to CSV.
+#===============================================================================
+# Timing function for the end of target function, and write output to CSV.
+#===============================================================================
+
 def benchmark(start_time, dictionary, function_name, ignore_sub_millisecond=True):
     
     # Get timedelta by subtracting current time from start time.
@@ -24,8 +27,10 @@ def benchmark(start_time, dictionary, function_name, ignore_sub_millisecond=True
     # Return updated dictionary.
     return dictionary
 
-#------------------------------------------------------------------------------ 
-# Define function for returning the finished benchmarking dictionary.
+#===============================================================================
+# Returns the finished benchmarking dictionary.
+#===============================================================================
+
 def print_benchmark_to_console(start_time, dictionary):
     
     sort_dict = {}

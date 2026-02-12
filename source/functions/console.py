@@ -6,9 +6,11 @@ Created on Dec 13, 2023
 
 import datetime
 
-#------------------------------------------------------------------------------ 
 
+#===============================================================================
 # Prints message to console.
+#===============================================================================
+
 def console(message_text, leading_spaces=0):
     
     time_string = datetime.datetime.now().strftime("%H:%M:%S")
@@ -17,7 +19,9 @@ def console(message_text, leading_spaces=0):
     
     print("{} | {}{}".format(time_string, leading_space_string, message_text))
 
-#------------------------------------------------------------------------------ 
+#===============================================================================
+# Prints breakline to console.
+#===============================================================================
 
 def console_breakline(break_char, div_char, line_length):
     
@@ -25,9 +29,11 @@ def console_breakline(break_char, div_char, line_length):
                           div_char,
                          "".join([break_char for i in range(0,line_length)]))) #@UnusedVariable
 
-#------------------------------------------------------------------------------ 
-
+#===============================================================================
 # Prints 'percent complete' messages to console at specified intervals.
+# Replaced with tqdm in 'vis_netcdf'.
+#===============================================================================
+
 # Intervals are in percentage points: '5' will produce messages at each 5% interval.
 def prcnt_complete(pr_count, pr_total, prcnt_inc, start_time, leading_spaces=0, leading_text=""):
     

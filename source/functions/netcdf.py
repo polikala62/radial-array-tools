@@ -8,6 +8,11 @@ These functions retrieve data from, create, and append to NetCDF files. Written 
 
 import netCDF4 as nc
 
+#===============================================================================
+# Generates NetCDF using dictionaries to update dimension and variable 
+# attributes.
+#===============================================================================
+
 def create_netcdf(out_ncdf_path, out_crs, file_dict, dim_dict, var_dict, var_atts_dict, var_arrays_dict):
     
     with nc.Dataset(out_ncdf_path, 'w', format="NETCDF4") as output:

@@ -6,7 +6,7 @@ Created on Mar 7, 2024
 
 # Import libraries.
 import numpy as np
-import arcpy, json, os, datetime, tqdm
+import arcpy, json, os, datetime, tqdm, math
 
 # Disable log history.
 if arcpy.GetLogHistory():
@@ -19,7 +19,8 @@ from functions.benchmark import print_benchmark_to_console
 from functions import json as pr_json
 
 # Define function for main loop.
-def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, obs_z_range, obs_z_offset=0, 
+def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_range, densify_dist, obs_z_range, 
+             array_angular_increment=1, obs_z_offset=0, output_null_value=0,
              sample_raster="", landmark_fc="", override_dist_list="", pt_mask_json='', write_log=False):
     
     # Print starting message to console.
@@ -221,7 +222,6 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     console.console("Y dimension has length: {}.".format(str(len(y_range))),2)
     console.console("Z dimension has length: {}.".format(str(len(z_range))),2)
     console.console("D dimension has length: {}.".format(str(len(d_range))),2)
-    console.console("4D array has {} data points.".format(str(pr_total)),2)
     
     #===========================================================================
     # CHECK POINTS AGAINST POINT MASK.
@@ -238,10 +238,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         console.console("Checking points against point mask...")
         
         # Set time for benchmarking.
-        point_mask_start_time = datetime.datetime.now() #@TODO: RE-MERGE THESE TWO, GET RID OF TIME.
-        
-        #checkpoints_pr_count = 0
-        #checkpoints_pr_total = int(len(x_range) * len(y_range))
+        point_mask_start_time = datetime.datetime.now()
         
         mask_poly = []
         
@@ -254,9 +251,13 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         
         # Generate list of mask indices.
         mask_int_indices = [i for i, j in np.ndenumerate(mask_int_array)] #@UnusedVariable
+        mask_indices_count = math.prod(mask_int_array.shape)
+        
+        # Only show progress bar if number of indices is greater than 10,000.
+        disable_check_pts_tqdm = True if mask_indices_count <= 10000 else False
         
         # Iterate through indices.
-        for index in tqdm.tqdm(mask_int_indices, disable=True):
+        for index in tqdm.tqdm(mask_int_indices, miniters=int(mask_indices_count/20), maxinterval=86400, desc='            Progress', disable=disable_check_pts_tqdm):
             
             # Get indices from iterator.
             y_idx, x_idx = index
@@ -270,10 +271,6 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
             if intersect.check_disjoint(pr_pt, mask_poly) == False:
                 
                 mask_int_array[y_idx, x_idx] = 1
-                
-            #checkpoints_pr_count += 1
-            
-            #console.prcnt_complete(checkpoints_pr_count, checkpoints_pr_total, 5, point_mask_start_time, leading_spaces=2, leading_text="")
         
         del mask_poly
         
@@ -282,7 +279,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
         
         pr_total = int(np.sum(mask_int_array))
         
-        console.console("2D array has {} data points that intersect point mask.".format(str(int(pr_total))),2)
+        console.console("{}/{} observer points intersect point mask.".format(str(int(pr_total)), str(mask_indices_count)),2)
         
         # Write points to json, if enabled.
         if pt_mask_json != '':
@@ -301,7 +298,7 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
     mask_int_indices = [i for i, j in np.ndenumerate(mask_int_array)] #@UnusedVariable
     
     # Iterate through indices in mask array.
-    for index in tqdm.tqdm(mask_int_indices, miniters=int(len(mask_int_indices)/100), maxinterval=86400):
+    for index in tqdm.tqdm(mask_int_indices, miniters=int(len(mask_int_indices)/100), maxinterval=86400, desc='            Progress'):
         
         # Get indices from iterator.
         y_idx, x_idx = index
@@ -333,10 +330,11 @@ def vis_ncdf(out_ncdf, pr_gdb, in_dem, pt_mask_fc, land_fc, xy_spacing, dist_ran
             
             # Only collect values if point does not intersect the mask.
             if len(pr_pt_dist_list) > 0:
-                    
+                
                 # Get visibility values.
-                obs_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, d_range, in_dem, dem_resolution, pr_gdb, out_crs, densify_dist, obs_z_offset, lmark_geom_list, 
-                                                                      land_poly, override_min_dist=pt_pt_min_land_dist, sample_ras=sample_raster, benchmark_dict=benchmark_dict)
+                obs_dict, benchmark_dict = viewshed.radial_viewshed(x_val, y_val, z_range, d_range, in_dem, dem_resolution, pr_gdb, out_crs, 
+                                                                    densify_dist, array_angular_increment, obs_z_offset, output_null_value, lmark_geom_list, 
+                                                                    land_poly, override_min_dist=pt_pt_min_land_dist, sample_ras=sample_raster, benchmark_dict=benchmark_dict)
                 
                 # Obs_dict is dictionary where key is observer height and value is distance dictionary.
                 for obs_z in obs_dict.keys():

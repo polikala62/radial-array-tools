@@ -6,9 +6,11 @@ Created on Dec 13, 2023
 
 import math
 
-#------------------------------------------------------------------------------ 
+#===============================================================================
+# Returns maximum subtended angle for points in a ray (a.k.a. heading).
+#===============================================================================
 
-def heading_sub_angle(obs_pt, heading_dict): # Returns maximum subtended angle.
+def heading_sub_angle(obs_pt, heading_dict):
     
     # Get observer coordinates as separate variables.
     obs_x, obs_y, obs_z = [float(i) for i in obs_pt]
@@ -48,9 +50,11 @@ def heading_sub_angle(obs_pt, heading_dict): # Returns maximum subtended angle.
     # Return output list.
     return out_dict
 
-#------------------------------------------------------------------------------ 
+#===============================================================================
+# Returns list of visible coordinates.
+#===============================================================================
 
-def heading_vis_pts(heading_dict, min_z): # Returns list of visible coordinates.
+def heading_vis_pts(heading_dict, min_z):
     
     # Create dict for output.
     out_dict = {}

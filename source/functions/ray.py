@@ -3,11 +3,11 @@ Created on Dec 9, 2024
 
 @author: Karl
 '''
+
 import arcpy, math
 from arcpy.sa import ExtractValuesToPoints
 
 #===============================================================================
-# CLOCKWISE_ANGLE
 # Calculates the clockwise angle between two vectors.
 #===============================================================================
 
@@ -55,7 +55,7 @@ def segment_angle(in_segment): # Segment must be list with projected XY coordina
         return 360 - degree_angle
 
 #===============================================================================
-# DISTANCE_BEARING_TO_VECTOR
+# Returns x and y components for vector based on distance and bearing.
 #===============================================================================
 
 def distance_bearing_to_vector(bearing, distance): # Assumes ref angle of 0 = NORTH and clockwise orientation.
@@ -80,7 +80,7 @@ def distance_bearing_to_vector(bearing, distance): # Assumes ref angle of 0 = NO
     return x_component, y_component
 
 #===============================================================================
-# 
+# Finds a line segment in a list of coordinates based on distance.
 #===============================================================================
 
 def find_segment_from_list(in_dist, dist_list, z_list):
@@ -93,7 +93,7 @@ def find_segment_from_list(in_dist, dist_list, z_list):
             return [[dist_list[idx-1], z_list[idx-1]], [dist_list[idx], z_list[idx]]]
 
 #===============================================================================
-# 
+# Sorts vertices in ray based on distance to observer.
 #===============================================================================
 
 def sort_vertices_2d(obs_x, obs_y, ray_pts_list):
@@ -120,7 +120,7 @@ def sort_vertices_2d(obs_x, obs_y, ray_pts_list):
     return [sorted_pts_list, sorted_dist_list]
 
 #===============================================================================
-# 
+# Densifies line segment.
 #===============================================================================
 
 def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, min_dist, max_dist):
@@ -180,33 +180,9 @@ def densify_3d_ray(start_pt, end_pt, ray_dist_list, ray_z_list, densify_dist, mi
     return out_pt_list, out_dist_list, out_null_list
 
 #===============================================================================
-# 
+# Calculates a value for earth curvature offset, working from first principles.
 #===============================================================================
-'''
-def adjust_curvature(obs_x, obs_y, ray_pts_list):
-    
-    out_list = []
-    
-    # Loop through vertices in ray.
-    for iter_pt in ray_pts_list:
-        
-        pt_x, pt_y, pt_z = iter_pt
-        
-        # Calculate the 2D distance from the observer point to the target point.
-        point_dist_cartesian = math.sqrt((pt_x-obs_x)**2 + (pt_y-obs_y)**2)
-        
-        # Calculate earth curvature offset.
-        rad_earth = 6370000 # Earth's radius, cribbed from: https://pro.arcgis.com/en/pro-app/latest/tool-reference/3d-analyst/using-viewshed-and-observer-points-for-visibility.htm
-        curvature_offset = (math.sqrt((rad_earth**2)+(point_dist_cartesian**2)) - rad_earth)
-        
-        # Subtract curvature offset from z value.
-        mod_pt_z = pt_z - curvature_offset
-        
-        out_list.append([pt_x, pt_y, mod_pt_z])
-        
-    return out_list
 
-'''
 def calc_curvature_offset(pt_dist):
         
     # Calculate the angle (in km) from the centre of the earth to the end of the line.
@@ -221,7 +197,11 @@ def calc_curvature_offset(pt_dist):
     # Return curvature drop.
     return float(curvature_offset)
 
-def adjust_curvature_2(obs_x, obs_y, ray_pts_list):
+#===============================================================================
+# Adjusts z coordinates in a list to correct for earth curvature.
+#===============================================================================
+
+def adjust_curvature(obs_x, obs_y, ray_pts_list):
     
     out_list = []
     
@@ -244,8 +224,8 @@ def adjust_curvature_2(obs_x, obs_y, ray_pts_list):
     return out_list
 
 #===============================================================================
-# ANGLE LIST
-# This function iterates the 'angle_above_horizon' function for elements of an input list, eliminating entries that are in a list of null values.
+# Iterates the 'angle_above_horizon' function for elements of an input list, 
+# eliminating entries that are in a list of null values.
 #===============================================================================
 
 def angle_list(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_list, null_list):
@@ -272,9 +252,9 @@ def angle_list(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_list, null_list):
     return out_angle_list
 
 #===============================================================================
-# ANGLE ABOVE HORIZON
-# This function measures the angle defined by an observer point, the lowest visibile point of land, and the highest visible point of land. It accounts
-# for observer height by calculating angles below and above the viewing horizon, if applicable.
+# Measures the angle defined by an observer point, the lowest visibile point of 
+# land, and the highest visible point of land. It accounts for observer height 
+# by calculating angles below and above the viewing horizon, if applicable.
 #===============================================================================
 
 def angle_above_horizon(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_x, pt_y, pt_z):
@@ -312,11 +292,10 @@ def angle_above_horizon(obs_x, obs_y, obs_surface_z, obs_z_offset, pt_x, pt_y, p
         return (pt_angle_above_offset)
 
 #===============================================================================
-# 
+# Calculates visibility along a ray (represented by a point list).
 #===============================================================================
 
-# An updated version of the original algorithm.
-def visibility_list_3(obs_z, obs_offset, check_pt_list, null_list): # check_pt_list is a tuple in format [distance-from-origin, elevation].
+def visibility_list(obs_z, check_pt_list, null_list): # check_pt_list is a tuple in format [distance-from-origin, elevation].
     
     # Generate output list.
     out_list = []
@@ -326,28 +305,26 @@ def visibility_list_3(obs_z, obs_offset, check_pt_list, null_list): # check_pt_l
     
     # Loop through points.
     for iter_idx, check_pt in enumerate(check_pt_list):
-        '''
-        if null_list[iter_idx]:
-            check_pt[1] += obs_z
-        '''
+        
         vis = 0
         
         # Skip the first point (assume it's in the null list, and therefore invisible).
         if iter_idx > 0:
             
+            # Use the null list to skip points.
             if null_list[iter_idx] == False:
                 
+                # If iterated z val is greater than the maximum, set visibility to 1.
                 if check_pt[1] > max_val:
                     vis = 1
                     max_val = check_pt[1]
         
         out_list.append(vis)
-        #print(check_pt, vis)
     
     return out_list
     
 #===============================================================================
-# 
+# Samples a raster at points defined by an input list.
 #===============================================================================
 
 def sample_raster(in_ras, pt_list, vis_list, coordinate_system):
@@ -367,7 +344,7 @@ def sample_raster(in_ras, pt_list, vis_list, coordinate_system):
             
                 # Insert row.
                 cursor.insertRow([oid] + row)
-    
+        
     del cursor
     
     # Get values from raster.
@@ -396,41 +373,53 @@ def sample_raster(in_ras, pt_list, vis_list, coordinate_system):
     return out_list
 
 #===============================================================================
-# 
+# Counts landmarks intersecting rays (represented by a point list).
 #===============================================================================
 
-def count_landmarks(obs_x, obs_y, max_dist, lmark_geom_list, check_pts_list, vis_list, in_crs):
+def count_landmarks(lmark_geom_list, pt_list, vis_list, in_crs):
     
+    # Create list for ouptut.
     out_list = []
     
     arcpy.env.outputCoordinateSystem = in_crs
     
-    # Select from geometry list where geometry is within distance of observer point.
-    lmark_mod_geom_list = [i for i in lmark_geom_list if i.distanceTo(arcpy.Point(obs_x, obs_y)) <= max_dist]
+    # Copy geometry list to local variable, so that items can be removed without damaging the input list.
+    func_lmark_geom_list = lmark_geom_list
     
     # If there are any landmark geometries left, loop through them.
-    if len(lmark_mod_geom_list) > 0:
-        
-        for check_idx, check_pt in enumerate(check_pts_list):
+    if len(func_lmark_geom_list) > 0:
+    
+        # Loop through points, indices in input point list.
+        for iter_idx, iter_pt in enumerate(pt_list):
             
-            landmark_int = 0
+            landmark_count = 0
             
-            if vis_list[check_idx] > 0:
+            # Only check point if it is visible (if not, landmark count stays zero).
+            if vis_list[iter_idx] == 1:
                 
                 # Check point may have three coordinates, use only the first two (x and y).
-                mod_check_pt = arcpy.Point(check_pt[0], check_pt[1])
+                mod_check_pt = arcpy.Point(iter_pt[0], iter_pt[1])
                 
-                for check_geometry in lmark_mod_geom_list:
+                # Check disjoint, increment landmark count if not disjoint.
+                if len(func_lmark_geom_list) > 0:
                     
-                    if check_geometry.disjoint(mod_check_pt) == False:
+                    # Loop through landmark geometries.
+                    for check_geometry in func_lmark_geom_list:
                         
-                        landmark_int += 1
-                    
-            out_list.append(landmark_int)
+                        # Check for disjoint.
+                        if check_geometry.disjoint(mod_check_pt) == False:
+                                
+                            landmark_count += 1
+                            
+                            # Remove geometry from list so it doesn't get counted twice.
+                            func_lmark_geom_list.remove(check_geometry)
             
-        return out_list
+            out_list.append(landmark_count)
     
+    # Return empty list if there are no input geometries.
     else:
         
-        return [0 for i in check_pts_list]
+        return [0 for i in pt_list] #@UnusedVariable
+    
+    return out_list
     

@@ -5,12 +5,17 @@ Created on Dec 13, 2023
 '''
 
 import arcpy, math
+import numpy as np
 
 # Disable log history.
 if arcpy.GetLogHistory():
     arcpy.SetLogHistory(False)
 
 from functions.intersect import check_disjoint
+
+#===============================================================================
+# Sorts points by 2D (Cartesian) distance from an origin.
+#===============================================================================
 
 def sort_pts_by_dist_2d(origin_pt, pt_list, multiplier=1):
     
@@ -35,9 +40,12 @@ def sort_pts_by_dist_2d(origin_pt, pt_list, multiplier=1):
     
     return out_list
 
+#===============================================================================
+# Generates the radial array by looping through degree increments and doing the 
+# trigonometry to calculate endpoints for the arrays.
+#===============================================================================
 
-#------------------------------------------------------------------------------ 
-def generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_interval=1):
+def generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_interval):
     
     # Set the geoprocessing workspace
     arcpy.env.workspace = pr_gdb
@@ -74,6 +82,11 @@ def generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_in
     # Return list for export cursor.
     return raster_clip_list, out_dict
 
+#===============================================================================
+# Selects rays that intersect coast features, to avoid processing unnecessary 
+# rays.
+#===============================================================================
+
 def filter_2d_radial_array(heading_polylines_dict, coast_poly_list):
     
     insert_cursor_list = []
@@ -96,8 +109,11 @@ def filter_2d_radial_array(heading_polylines_dict, coast_poly_list):
                 
     return insert_cursor_list
 
-#------------------------------------------------------------------------------ 
-def interpolate_2d_radial_array_2(obs_x, obs_y, obs_z_list, insert_cursor_list, in_ras, pr_gdb, pr_crs):
+#===============================================================================
+# Interpolates an array of 2D vectors based on an input raster surface.
+#===============================================================================
+
+def interpolate_2d_radial_array(insert_cursor_list, in_ras, pr_gdb, pr_crs):
     
     # Set the geoprocessing workspace
     arcpy.env.workspace = pr_gdb
@@ -155,9 +171,12 @@ def interpolate_2d_radial_array_2(obs_x, obs_y, obs_z_list, insert_cursor_list, 
     # Return output dictionary.
     return out_list
 
-#------------------------------------------------------------------------------ 
+#===============================================================================
+# Performs stats on rays in array, and then stats on the calculated ray values
+# to return a single summary value for the array.
+#===============================================================================
 
-def array_stats(in_array, vis_list, stop_idx, ray_method, array_method, verbose=False):    
+def array_stats(in_array, vis_list, stop_idx, ray_method, array_method, null_value=0, verbose=False):    
     
     pr_list = []
     
@@ -166,19 +185,19 @@ def array_stats(in_array, vis_list, stop_idx, ray_method, array_method, verbose=
         clip_list = ray_list[0:stop_idx]
         
         if verbose:
-            print('stop_idx:', stop_idx)
-            print('ray_idx:', ray_idx)
-            print(len(clip_list), 'in c', [round(i, 4) for i in clip_list])
-            print(len(vis_list), 'in v:', vis_list)
-            print(ray_idx, len(in_array))
-            print('v_rounded: ', [round(i, 4) for i in vis_list[ray_idx]])
+            print('array_shape=', np.array(in_array).shape)
+            print('stop_idx=', stop_idx)
+            print('ray_idx=', ray_idx)
+            print('len(clip_list)=', len(clip_list), 'clip_list=', [round(i, 4) for i in clip_list])
+            print('len(vis_list)=', len(vis_list),  'vis_list=', vis_list)
+            print("ray_idx={}, len(in_array)={}".format(ray_idx, len(in_array)))
+            print('rounded_vis_list=', [round(i, 4) for i in vis_list[ray_idx]])
             
         iter_list = [clip_list[i] for i in range(0, len(clip_list)) if vis_list[ray_idx][i] == 1]
         
         if verbose:
-            print('i', [round(i, 4) for i in iter_list])
+            print('rounded_iter_list', [round(i, 4) for i in iter_list])
             print()
-        #iter_list = filter_vis(ray_list[0:ray_idx+1], vis_list, ray_idx)
         
         mod_iter_list = [i for i in iter_list if i is not None]
         
@@ -198,8 +217,6 @@ def array_stats(in_array, vis_list, stop_idx, ray_method, array_method, verbose=
         
     if len(pr_list) > 0:
         
-        #print(stop_idx, pr_list)
-        
         # Summarise array according to method.
         if array_method == "MIN":
             return min(pr_list)
@@ -210,8 +227,6 @@ def array_stats(in_array, vis_list, stop_idx, ray_method, array_method, verbose=
         elif array_method == "AVG":
             return sum(pr_list)/len(pr_list)
     
-    #@TODO: WORK OUT WHAT TO DO WITH THESE CASES. ZERO PROBABLY ISN'T THE RIGHT ANSWER.
+    # If list is empty, return null value (zero by default).
     else:
-        return 0
-
-#------------------------------------------------------------------------------ 
+        return null_value
