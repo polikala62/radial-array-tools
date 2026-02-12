@@ -4,7 +4,11 @@ Created on Dec 13, 2023
 @author: Karl
 '''
 
-# Check for disjoint slightly more efficiently by escaping the function as soon as an intersection is detected.
+#===============================================================================
+# Checks for disjoint between an input point and a list of polygons.
+# Function escapes as soon as an intersection is detected.
+#===============================================================================
+
 def check_disjoint(in_pt, in_poly_list):
     
     # Loop through polygons in list.
@@ -17,6 +21,11 @@ def check_disjoint(in_pt, in_poly_list):
     
     # If function has not been escaped, then all polygons in list were disjoint, return True.
     return True
+
+#===============================================================================
+# Returns list of distances from point to polygons, and returns empty list if 
+# point is inside polygons.
+#===============================================================================
 
 def check_distance_to(in_pt, in_poly_list):
     

@@ -12,7 +12,8 @@ from functions.benchmark import benchmark
 if arcpy.GetLogHistory():
     arcpy.SetLogHistory(False)
 
-def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res, pr_gdb, pt_crs, densify_dist, obs_z_offset=0,
+def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res, pr_gdb, pt_crs, 
+                    densify_dist, degree_interval, obs_z_offset=0, output_null_value=0,
                     lmark_geom_list="", land_fc="", override_min_dist="", sample_ras="", benchmark_dict={}):
     
     # Get distance min, max, and increment from variable.
@@ -30,7 +31,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
     function_start_time = datetime.datetime.now()
     
     # Generate 2D radial array.
-    check_coordinates_list, heading_polylines_dict = array.generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_interval=1)
+    check_coordinates_list, heading_polylines_dict = array.generate_2d_radial_array(obs_x, obs_y, min_dist, max_dist, pr_gdb, degree_interval)
     
     benchmark_dict = benchmark(function_start_time, benchmark_dict, "array.generate_2d_radial_array")
     
@@ -84,7 +85,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
     
     # Interpolate 2d array to 3d array, and return nested list where: [[vertices in line1], [vertices in line2]...].
     function_start_time = datetime.datetime.now()
-    radial_array_list = array.interpolate_2d_radial_array_2(obs_x, obs_y, obs_z_list, insert_cursor_list, clip_ras, pr_gdb, pt_crs)
+    radial_array_list = array.interpolate_2d_radial_array(insert_cursor_list, clip_ras, pr_gdb, pt_crs)
     
     benchmark_dict = benchmark(function_start_time, benchmark_dict, "array.interpolate_2d_radial_array_2")
     
@@ -97,8 +98,6 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
     array_pt_list = []
     array_2d_dist_list = []
     array_null_list = []
-    array_sample_list = []
-    array_landmark_list = []
     
     # Loop through rays.
     for ray_vertex_list in radial_array_list:
@@ -127,7 +126,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
             function_start_time = datetime.datetime.now()
             
             # Adjust z values in densified point list to account for curvature.
-            pr_ray_pt_list = ray.adjust_curvature_2(obs_x, obs_y, densified_ray_pt_list)
+            pr_ray_pt_list = ray.adjust_curvature(obs_x, obs_y, densified_ray_pt_list)
             
             # Add modified array to list.
             array_pt_list.append(pr_ray_pt_list)
@@ -146,12 +145,29 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
         # Create dictionaries to hold visibility values.
         z_vis_dict = {}
         z_v_angle_dict = {}
+        z_landmark_dict = {}
+        z_sample_dict = {}
         
         # Loop through observer points, calculate visibility for all points.
         for obs_z in obs_z_list:
             
+            #------------------------------------------------------------------------------ 
+            
+            # Set variables for landmark counting (if enabled).
+            if lmark_geom_list != "":
+                
+                # Filter list of landmark geometries to select geometries with max_dist of observer point.
+                lmark_mod_geom_list = [i for i in lmark_geom_list if i.distanceTo(arcpy.Point(obs_x, obs_y)) <= max_dist]
+            
+            #------------------------------------------------------------------------------ 
+            
+            # Create lists to hold values for the observer point.
             obs_v_angle_list = []
             obs_vis_list = []
+            obs_landmark_list = []
+            obs_sample_list = []
+            
+            #------------------------------------------------------------------------------ 
             
             # Loop through rays in radial array list.
             for iter_ray_idx, iter_ray in enumerate(array_pt_list):
@@ -175,25 +191,57 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                 #simp_vis_list = list.simplify_vis_list(vis_list)
                 
                 # Calculate visibility for vertices in list, add to observer point list.
-                obs_vis_list.append(ray.visibility_list_3(obs_z, obs_z_offset, vis_list, iter_ray_nulls))
+                obs_vis_list.append(ray.visibility_list(obs_z, vis_list, iter_ray_nulls))
+                
+                benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.visibility_list")
+                
+                #------------------------------------------------------------------------------ 
+                
+                # Calculate landmark count, if enabled.
+                if lmark_geom_list != "":
+                    
+                    function_start_time = datetime.datetime.now()
+                    
+                    obs_landmark_list.append(ray.count_landmarks(lmark_mod_geom_list, iter_ray, obs_vis_list[-1], pt_crs))
+                    
+                    benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.count_landmarks")
+                
+                #------------------------------------------------------------------------------ 
+                
+                # Calculate sample raster values, if enabled.
+                function_start_time = datetime.datetime.now()
+                
+                # Create list of landmark values, if enabled, and add to list.
+                if sample_ras != "":
+                    
+                    obs_sample_list.append(ray.sample_raster(sample_ras, iter_ray, obs_vis_list[-1], pt_crs))
+                
+                benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.sample_raster")
+                
+                #------------------------------------------------------------------------------ 
                 
                 # Remove extra lists from memory.
                 del vis_list, iter_ray_nulls
-                
-                benchmark_dict = benchmark(function_start_time, benchmark_dict, "ray.visibility_list")
         
-            # Add values to dictionary.
+            # Add values to dictionaries.
             z_vis_dict[str(obs_z)] = obs_vis_list
             z_v_angle_dict[str(obs_z)] = obs_v_angle_list
+            z_landmark_dict[str(obs_z)] = obs_landmark_list
+            z_sample_dict[str(obs_z)] = obs_sample_list
             
             #------------------------------------------------------------------------------ 
+            
+            '''
+            print(z_vis_dict.keys())
+            print()
+            print(z_vis_dict)
             
             # Loop through rays again.
             for ray_idx, pr_ray_pt_list in enumerate(array_pt_list):
                 
                 # Create consensus visibility list.
-                #consensus_vis_list = list.vis_dict_to_list(z_vis_dict, ray_idx)
-                consensus_vis_list = obs_vis_list
+                consensus_vis_list = list.vis_dict_to_list(z_vis_dict, ray_idx)
+                #consensus_vis_list = obs_vis_list
                 
                 #------------------------------------------------------------------------------ 
                 
@@ -201,7 +249,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                 if sample_ras != "":
                     
                     # Check if any points are visible.
-                    if sum(consensus_vis_list) > 0:
+                    if len(consensus_vis_list) > 0:
                     
                         function_start_time = datetime.datetime.now()
                         
@@ -220,7 +268,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                 if lmark_geom_list != "":
                     
                     # Check if any points are visible.
-                    if sum(consensus_vis_list) > 0:
+                    if len(consensus_vis_list) > 0:
                     
                         function_start_time = datetime.datetime.now()
                         
@@ -235,7 +283,7 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                 
                 # Delete lists.
                 del pr_ray_pt_list
-            
+            '''
         #------------------------------------------------------------------------------ 
         # LOOP THROUGH OBSERVERS AND UPDATE SUMMARY VALUES.
         
@@ -247,6 +295,8 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
             
             obs_v_angle_list = z_v_angle_dict[str(obs_z)]
             obs_vis_list = z_vis_dict[str(obs_z)]
+            obs_landmark_list = z_landmark_dict[str(obs_z)]
+            obs_sample_list = z_sample_dict[str(obs_z)]
             
             #------------------------------------------------------------------------------ 
             
@@ -264,11 +314,11 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                     function_start_time = datetime.datetime.now()
                     
                     # Get stats for vertical angle.
-                    v_angle_sum = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "SUM")
-                    v_angle_max = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "MAX")
+                    v_angle_sum = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "SUM", output_null_value)
+                    v_angle_max = array.array_stats(obs_v_angle_list, obs_vis_list, dist_idx, "MAX", "MAX", output_null_value)
                     
                     # Get stats for horizontal angle.
-                    h_angle_sum = array.array_stats(obs_vis_list, obs_vis_list, dist_idx, "MAX", "SUM")
+                    h_angle_sum = array.array_stats(obs_vis_list, obs_vis_list, dist_idx, "MAX", "SUM", output_null_value)
                     
                     # Create output list.
                     out_row = [v_angle_sum, v_angle_max, h_angle_sum]
@@ -276,16 +326,16 @@ def radial_viewshed(obs_x, obs_y, obs_z_list, dist_list, in_dem_ras, in_dem_res,
                     # Get stats for sample raster, if enabled.
                     if sample_ras != "":
                         
-                        sample_max = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MAX", "MAX")
-                        sample_min = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "MIN", "MIN")
-                        sample_avg = array.array_stats(array_sample_list, obs_vis_list, dist_idx, "AVG", "AVG")
+                        sample_max = array.array_stats(obs_sample_list, obs_vis_list, dist_idx, "MAX", "MAX", output_null_value)
+                        sample_min = array.array_stats(obs_sample_list, obs_vis_list, dist_idx, "MIN", "MIN", output_null_value)
+                        sample_avg = array.array_stats(obs_sample_list, obs_vis_list, dist_idx, "AVG", "AVG", output_null_value)
                     
                         for i in [sample_max, sample_min, sample_avg]:
                             out_row.append(i)
                     
                     # Get stats for landmarks, if enabled.
                     if lmark_geom_list != "":
-                        landmark_sum = array.array_stats(array_landmark_list, obs_vis_list, dist_idx, "SUM", "SUM")
+                        landmark_sum = array.array_stats(obs_landmark_list, obs_vis_list, dist_idx, "SUM", "SUM", output_null_value)
                     
                         out_row.append(landmark_sum)
                     

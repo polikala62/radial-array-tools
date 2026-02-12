@@ -9,7 +9,7 @@ import os, json
 from vis_netcdf_main import vis_ncdf
 
 # Change as necessary.
-default_json_path = r'C:\Users\Karl Smith\git\radial-array-tools\demo\vis_netcdf\troubleshooting\vis_netcdf_demo_troubleshooting_parameters_02.json'
+default_json_path = r'C:\Users\Karl Smith\git\radial-array-tools\demo\vis_netcdf\vis_netcdf\vis_netcdf_demo1_parameters.json'
 
 # Get filepath from input.
 input_path = input("Enter path to json file, then press ENTER.\nPressing ENTER without defining a path will use default path at '{}'.\n".format(default_json_path))
@@ -20,6 +20,7 @@ if input_path == '':
 # Check if path exists.
 if os.path.exists(input_path):
     
+    # Load .json as dictionary.
     with open(input_path) as in_json:
         run_dict = json.load(in_json)
     
@@ -29,12 +30,13 @@ if os.path.exists(input_path):
     # Get dictionary of optional arguments.
     kwarg_dict = {}
     for key in run_dict.keys():
-        if key in ['obs_z_offset', 'sample_raster', 'landmark_fc', 'override_dist_list', 'pt_mask_json', 'write_log']:
+        if key in ['output_null_value', 'array_angular_increment', 'obs_z_offset', 'sample_raster', 'landmark_fc', 'override_dist_list', 'pt_mask_json', 'write_log']:
             kwarg_dict[key] = run_dict[key]
     
     # Run script with mandatory and optional arguments.
     vis_ncdf(*arg_list, **kwarg_dict)
-        
+
+# If input parameters don't exist, exit the script.     
 else:
     
     print("Path '{}' does not exist. Please check the path and try again.".format(input_path))

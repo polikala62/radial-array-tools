@@ -4,6 +4,10 @@ Created on Mar 18, 2024
 @author: Karl
 '''
 
+#===============================================================================
+# Searches an input list for a value and returns the index.
+#===============================================================================
+
 def list_index_from_val(in_list, in_val):
     
     # Get list of indices for entries in list that match value.
@@ -23,40 +27,33 @@ def list_index_from_val(in_list, in_val):
     else:
         
         raise Exception("Found multiple instances of value '{}' in list '{}'.".format(in_val, ",".join([str(i) for i in in_list])))
-    
+
 #===============================================================================
-# 
+# Finds the nearest value in a list to an input value. Returns None if no values
+# in list are within threshold distance to input value.
 #===============================================================================
 
-def match_val_to_list(in_val, in_list, threshold):
-    
-    diff_list = [abs(in_val-i) for i in in_list if (in_val-i) <= 0]
-    
-    print(diff_list)
-    if min(diff_list) <= threshold:
-        
-        return True
-    
-    else:
-        
-        return False
-    
 def nearest_dist_val(in_val, in_list, threshold):
     
     out_val = None
     out_diff = None
     
+    # Loop through values in input.
     for list_val in in_list:
         
+        # Find distance between search value and iterated value.
         check_diff = in_val-list_val
         
+        # Check if distance is within limits.
         if abs(check_diff) <= threshold:
             
+            # Update out_val and out_diff if first iteration.
             if out_val == None:
                 
                 out_val = list_val
                 out_diff = abs(in_val - out_val)
-                
+            
+            # Update out_val and out_diff if iterated difference is lower (and also less than zero).
             elif abs(in_val-out_val) < out_diff and in_val-out_val <= 0:
                 
                 out_val = list_val
