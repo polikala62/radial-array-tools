@@ -1,4 +1,4 @@
-# Radial Array Tools
+# radial-array-tools
 
 
 
@@ -15,7 +15,19 @@ This project uses Python scripts and ArcGIS geoprocessing tools to perform visib
 
 
 
+These scripts use ESRI ArcGIS geoprocessing tools via the proprietary [ArcPy Python site package](https://pro.arcgis.com/en/pro-app/latest/arcpy/get-started/what-is-arcpy-.htm). It also uses the open-source [netCDF4 API](https://unidata.github.io/netcdf4-python/). All other dependent libraries (datetime, json, math, numpy, os, tqdm) should be part of a standard Python installation.
+
+
+
+
+
 There is currently one fully-functional, (mostly) commented script in this 'toolbox', called 'vis\_netcdf'. It uses functions in 'radial-array-tools\\source\\functions'. Not all functions in 'radial-array-tools\\source\\functions' are used by 'vis\_netcdf' - many have been used in other projects. If you come across one that looks useful, let me know and I will consider making a dedicated tool for it!
+
+
+
+
+
+
 
 
 
