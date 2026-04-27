@@ -148,7 +148,7 @@ Rew, R., Davis, G., 1990. *NetCDF: an interface for scientific data access*. IEE
 
 
 
-Smith, K., Hulin, L. *Mediterranean Maritime Visibility: Old Limits and New Approaches*. Antiquity. Forthcoming; accepted for publication.
+Smith, K., Hulin, L. *Mediterranean Maritime Visibility: Old Limits and New Approaches*. Antiquity. Published online by Cambridge University Press: https://www.cambridge.org/core/journals/antiquity/article/mediterranean-maritime-visibility-old-limits-and-new-approaches/37EBAC042FD7B32797A553CA69531DF6.
 
 
 
